@@ -1,6 +1,7 @@
 package com.callcenter.core;
 
 import com.callcenter.core.config.CoreProperties;
+import com.callcenter.core.config.FreeSwitchConfig;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -9,7 +10,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
  * 第一期核心呼叫模块启动入口。
  */
 @SpringBootApplication(scanBasePackages = "com.callcenter")
-@EnableConfigurationProperties(CoreProperties.class)
+@EnableConfigurationProperties({CoreProperties.class, FreeSwitchConfig.class})
 public class CallCoreApplication {
 
     /**

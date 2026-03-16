@@ -30,7 +30,7 @@
 |------|------|------|------|------|
 | T1 | Maven 工程骨架 + 公共模块 | 无 | 1 session | ✅ 已完成 |
 | T2 | MySQL 建表 + Entity + Mapper | T1 | 1 session | ✅ 已完成 |
-| T3 | FreeSWITCH ESL 连接管理 | T1 | 1 session | ⬜ 待开始 |
+| T3 | FreeSWITCH ESL 连接管理 | T1 | 1 session | ✅ 已完成 |
 | T4 | 外呼 API 全链路 | T2, T3 | 1 session | ⬜ 待开始 |
 | T5 | 呼入事件监听 | T3 | 1 session | ⬜ 待开始 |
 | T6 | 通话日志落库 | T2, T4/T5 | 1 session | ⬜ 待开始 |
@@ -208,25 +208,25 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 验收清单
 
-- [ ] application-core.yml 中 FS 配置项完整（host/port/password/timeout）
-- [ ] FS 配置缺失时，启动不崩溃但打印明确警告日志
-- [ ] FreeSwitchService 接口定义清晰（originate / 事件订阅 / 连接状态）
-- [ ] ESL 连接失败时返回 BusinessException 而非原始异常
-- [ ] 连接重试逻辑可测试（模拟 FS 不可用场景）
+- [x] application-core.yml 中 FS 配置项完整（host/port/password/timeout）
+- [x] FS 配置缺失时，启动不崩溃但打印明确警告日志
+- [x] FreeSwitchService 接口定义清晰（originate / 事件订阅 / 连接状态）
+- [x] ESL 连接失败时返回 BusinessException 而非原始异常
+- [x] 连接重试逻辑可测试（模拟 FS 不可用场景）
 
 ### 执行记录
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：（Vibe Coding / 手动）
-- 完成情况：（已完成 / 部分完成 / 未完成）
-- 验证结果：
-- 降级说明：（无则写“无”）
-- 阻塞项：（无则写“无”）
-- 偏差记录：（无则写“无”）
-- 下一步建议：
-- 需回溯更新 Spec 的点：（无则写“无”）
+- 执行时间：2026-03-16
+- 执行方式：Vibe Coding + 本地验证
+- 完成情况：已完成
+- 验证结果：新增 `FreeSwitchConfig`、`FreeSwitchService`、`FreeSwitchConnectionStatus`、`FreeSwitchServiceImpl` 与 `FreeSwitchServiceImplTest`；`application-core.yml` 已补齐 `enabled/host/port/password/timeout/max-retry-attempts/retry-interval-millis/event-format/startup-events/originate-template`；执行 `mvn -pl :call-core -am package -DskipTests` 通过；执行 `mvn -pl :call-core -am -Dtest=FreeSwitchServiceImplTest "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（3 tests, 0 failures）；执行 `java -jar backend/call-center/call-core/target/call-core-0.0.1-SNAPSHOT.jar` 启动成功，Tomcat 8080 正常。
+- 降级说明：当前运行环境对 `115.190.203.136:8025` 外连返回 `Permission denied: getsockopt`，应用按 `call.core.mock-fs-enabled=true` 进入降级模式继续启动；已验证“可启动 + 错误可观测”，未验证真实 FreeSWITCH 连通。
+- 阻塞项：无。
+- 偏差记录：为适配 `link.thingscloud:freeswitch-esl:2.2.0`，启动时事件订阅采用 `InboundClientOption.addEvents(...)` 预注册，而不是在连接建立前主动调用 `setEventSubscriptions(...)`。
+- 下一步建议：进入 T4，基于 `FreeSwitchService.originate(...)` 实现外呼 API 全链路。
+- 需回溯更新 Spec 的点：无。
 
 ---
 

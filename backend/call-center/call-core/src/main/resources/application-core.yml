@@ -20,7 +20,16 @@ spring:
       connection-test-query: SELECT 1
 
 freeswitch:
-  host: xx
-  port: xx
-  password: xx
+  enabled: true
+  host: XXX
+  port: 111
+  password: XXXX
+  timeout-seconds: 30
   heartbeat-timeout-seconds: 30
+  max-retry-attempts: 3
+  retry-interval-millis: 5000
+  event-format: plain
+  startup-events:
+    - CHANNEL_CREATE
+    - CHANNEL_HANGUP_COMPLETE
+  originate-template: "user/%s"
