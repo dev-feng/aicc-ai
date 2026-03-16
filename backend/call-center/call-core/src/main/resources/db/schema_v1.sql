@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS `call_record` (
   `id`               BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-  `call_id`          VARCHAR(32)  NOT NULL COMMENT '呼叫唯一标识（UUID）',
+  `call_id`          VARCHAR(64)  NOT NULL COMMENT '呼叫唯一标识（UUID）',
   `caller`           VARCHAR(20)  NOT NULL COMMENT '主叫号码',
   `callee`           VARCHAR(20)  NOT NULL COMMENT '被叫号码',
   `call_type`        TINYINT      NOT NULL COMMENT '呼叫类型：1-呼入，2-呼出',

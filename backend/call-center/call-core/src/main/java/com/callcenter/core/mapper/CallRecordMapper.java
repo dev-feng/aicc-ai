@@ -2,6 +2,7 @@ package com.callcenter.core.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.callcenter.core.entity.CallRecord;
+import org.apache.ibatis.annotations.Mapper;
 
 /**
  * 通话记录 Mapper，基于 MyBatis-Plus 提供 CRUD，不手写 XML。

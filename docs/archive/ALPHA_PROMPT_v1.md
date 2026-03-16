@@ -10,7 +10,7 @@
 - 通信中间件：FreeSWITCH 1.10.7（ESL协议对接）
 - 数据库：MySQL 8.0（InnoDB引擎，UTF8mb4编码）
 - 依赖版本：
-    - freeswitch-esl-client：0.9.7
+    - link.thingscloud:freeswitch-esl：2.2.0
     - mybatis-plus：3.5.5
     - lombok：1.18.30
     - spring-context：6.1.x

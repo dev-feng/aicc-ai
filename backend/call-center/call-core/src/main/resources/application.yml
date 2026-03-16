@@ -14,3 +14,5 @@ logging:
   level:
     root: INFO
     com.callcenter: INFO
+server:
+  port: 8080

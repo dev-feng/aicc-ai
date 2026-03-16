@@ -27,7 +27,7 @@
         <spring-context.version>6.1.15</spring-context.version>
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
         <mysql.version>8.0.33</mysql.version>
-        <freeswitch-esl.version>0.9.7</freeswitch-esl.version>
+        <freeswitch-esl.version>2.2.0</freeswitch-esl.version>
         <lombok.version>1.18.30</lombok.version>
         <maven.compiler.release>${java.version}</maven.compiler.release>
     </properties>
@@ -41,7 +41,7 @@
             </dependency>
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
                 <version>${mybatis-plus.version}</version>
             </dependency>
             <dependency>
@@ -50,8 +50,8 @@
                 <version>${mysql.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.freeswitch.esl.client</groupId>
-                <artifactId>org.freeswitch.esl.client</artifactId>
+                <groupId>link.thingscloud</groupId>
+                <artifactId>freeswitch-esl</artifactId>
                 <version>${freeswitch-esl.version}</version>
             </dependency>
             <dependency>

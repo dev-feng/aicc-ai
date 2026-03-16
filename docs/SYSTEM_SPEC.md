@@ -148,9 +148,9 @@
 <!-- 核心依赖版本（统一在父 POM 管理） -->
 spring-boot            : 3.2.x
 spring-context         : 6.1.x
-mybatis-plus-boot-starter : 3.5.5    <!-- ORM + CRUD + 分页 -->
+mybatis-plus-spring-boot3-starter : 3.5.5    <!-- ORM + CRUD + 分页 -->
 mysql-connector-j      : 8.0.x
-freeswitch-esl-client  : 0.9.7
+freeswitch-esl         : 2.2.0
 lombok                 : 1.18.30
 mapstruct              : 1.5.5      <!-- Entity ↔ DTO 转换（可选） -->
 ```

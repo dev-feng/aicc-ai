@@ -7,9 +7,9 @@ spring:
     activate:
       on-profile: core
   datasource:
-    url: jdbc:mysql://127.0.0.1:3306/aicc_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    url: jdbc:mysql://127.0.0.1:3306/call_center?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
     username: root
-    password: root
+    password: 1!qazWSX
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       initialization-fail-timeout: -1
@@ -20,8 +20,7 @@ spring:
       connection-test-query: SELECT 1
 
 freeswitch:
-  enabled: false
-  host: 127.0.0.1
-  port: 8021
-  password: ClueCon
-  timeout: 30s
+  host: xx
+  port: xx
+  password: xx
+  heartbeat-timeout-seconds: 30

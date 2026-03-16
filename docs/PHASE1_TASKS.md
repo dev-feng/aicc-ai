@@ -167,7 +167,7 @@ call-core/
 - 执行时间：2026-03-13
 - 执行方式：Vibe Coding
 - 完成情况：已完成（代码与 DDL 就绪；Mapper 注册与 insert 需本地 MySQL 或修测后再验）
-- 验证结果：call-core 已加入 mybatis-plus-boot-starter、mysql-connector-j；新增 db/schema_v1.sql、entity/CallRecord.java、mapper/CallRecordMapper.java、config/MyBatisPlusConfig.java、CallRecordMapperTest；mvn clean compile 通过。
+- 验证结果：call-core 已加入 mybatis-plus-spring-boot3-starter、mysql-connector-j；新增 db/schema_v1.sql、entity/CallRecord.java、mapper/CallRecordMapper.java、config/MyBatisPlusConfig.java、CallRecordMapperTest；mvn clean compile 通过。
 - 降级说明：无。
 - 阻塞项：无。
 - 偏差记录：CallRecordMapper 仅靠 @MapperScan 扫描，未使用 @Mapper。
@@ -185,7 +185,7 @@ call-core/
 **输入**：
 - SYSTEM_SPEC.md 第 4 章（架构 + 数据流）
 - GOALS.md G2 外呼链路可验证 + G3 呼入/事件接入可验证
-- freeswitch-esl-client 0.9.7 API
+- link.thingscloud:freeswitch-esl 2.2.0 API
 
 **产出文件清单**：
 
