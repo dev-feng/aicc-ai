@@ -31,7 +31,7 @@
 | T1 | Maven 工程骨架 + 公共模块 | 无 | 1 session | ✅ 已完成 |
 | T2 | MySQL 建表 + Entity + Mapper | T1 | 1 session | ✅ 已完成 |
 | T3 | FreeSWITCH ESL 连接管理 | T1 | 1 session | ✅ 已完成 |
-| T4 | 外呼 API 全链路 | T2, T3 | 1 session | ⬜ 待开始 |
+| T4 | 外呼 API 全链路 | T2, T3 | 1 session | 🟡 部分完成 |
 | T5 | 呼入事件监听 | T3 | 1 session | ⬜ 待开始 |
 | T6 | 通话日志落库 | T2, T4/T5 | 1 session | ⬜ 待开始 |
 | T7 | 通话日志查询 API | T2, T6 | 1 session | ⬜ 待开始 |
@@ -218,13 +218,13 @@ call-core/src/main/java/com/callcenter/core/
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：2026-03-16
+- 执行时间：2026-03-16（首次完成）；2026-03-16（补充真实链路核验）
 - 执行方式：Vibe Coding + 本地验证
 - 完成情况：已完成
-- 验证结果：新增 `FreeSwitchConfig`、`FreeSwitchService`、`FreeSwitchConnectionStatus`、`FreeSwitchServiceImpl` 与 `FreeSwitchServiceImplTest`；`application-core.yml` 已补齐 `enabled/host/port/password/timeout/max-retry-attempts/retry-interval-millis/event-format/startup-events/originate-template`；执行 `mvn -pl :call-core -am package -DskipTests` 通过；执行 `mvn -pl :call-core -am -Dtest=FreeSwitchServiceImplTest "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（3 tests, 0 failures）；执行 `java -jar backend/call-center/call-core/target/call-core-0.0.1-SNAPSHOT.jar` 启动成功，Tomcat 8080 正常。
-- 降级说明：当前运行环境对 `115.190.203.136:8025` 外连返回 `Permission denied: getsockopt`，应用按 `call.core.mock-fs-enabled=true` 进入降级模式继续启动；已验证“可启动 + 错误可观测”，未验证真实 FreeSWITCH 连通。
+- 验证结果：新增 `FreeSwitchConfig`、`FreeSwitchService`、`FreeSwitchConnectionStatus`、`FreeSwitchServiceImpl` 与 `FreeSwitchServiceImplTest`；`application-core.yml` 已补齐 `enabled/host/port/password/timeout/max-retry-attempts/retry-interval-millis/event-format/startup-events/originate-template`；执行 `mvn -pl :call-core -am package -DskipTests` 通过；执行 `mvn -pl :call-core -am -Dtest=FreeSwitchServiceImplTest "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（3 tests, 0 failures）；执行 `java -jar backend/call-center/call-core/target/call-core-0.0.1-SNAPSHOT.jar --server.port=18080` 启动成功，Tomcat 18080 正常。另据 2026-03-16 的真实运行日志，已出现 `FreeSWITCH connection opened: 115.190.203.136:8025`、`Auth requested` 与 `Auth response success=true, message=[+OK accepted]`，说明 ESL 真实连接与鉴权在用户运行环境中已打通。
+- 降级说明：在当前 Codex 运行环境复测时，对 `115.190.203.136:8025` 外连仍返回 `Permission denied: getsockopt`，应用按 `call.core.mock-fs-enabled=true` 继续启动；因此“真实 FS 连通”依据为用户提供的成功日志，“当前环境复测”依据为降级启动日志。
 - 阻塞项：无。
-- 偏差记录：为适配 `link.thingscloud:freeswitch-esl:2.2.0`，启动时事件订阅采用 `InboundClientOption.addEvents(...)` 预注册，而不是在连接建立前主动调用 `setEventSubscriptions(...)`。
+- 偏差记录：为适配 `link.thingscloud:freeswitch-esl:2.2.0`，启动时事件订阅采用 `InboundClientOption.addEvents(...)` 预注册，而不是在连接建立前主动调用 `setEventSubscriptions(...)`；补充核验阶段因本地 8080 已被占用，改用 `--server.port=18080` 进行启动验证。
 - 下一步建议：进入 T4，基于 `FreeSwitchService.originate(...)` 实现外呼 API 全链路。
 - 需回溯更新 Spec 的点：无。
 
@@ -267,24 +267,24 @@ call-core/src/main/java/com/callcenter/core/
 ### 验收清单
 
 - [ ] curl 调用 POST /api/call/outbound 返回 `{"code":200,"msg":"success","data":{"callId":"xxx"}}`
-- [ ] 参数为空时返回 `{"code":400,"msg":"参数错误",...}`
-- [ ] FS 连接失败时返回 `{"code":500,...}` 而非堆栈
+- [x] 参数为空时返回 `{"code":400,"msg":"参数错误",...}`
+- [x] FS 连接失败时返回 `{"code":500,...}` 而非堆栈
 - [ ] 日志中可见 CallCreatedEvent 发布记录
-- [ ] Controller 中无直接业务逻辑（纯委托 Service）
+- [x] Controller 中无直接业务逻辑（纯委托 Service）
 
 ### 执行记录
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：（Vibe Coding / 手动）
-- 完成情况：（已完成 / 部分完成 / 未完成）
-- 验证结果：
-- 降级说明：（无则写“无”）
-- 阻塞项：（无则写“无”）
-- 偏差记录：（无则写“无”）
-- 下一步建议：
-- 需回溯更新 Spec 的点：（无则写“无”）
+- 执行时间：2026-03-16
+- 执行方式：Vibe Coding + 本地验证
+- 完成情况：部分完成
+- 验证结果：新增 `CallController`、`OutboundCallRequest`、`OutboundCallResponse`、`CallService`、`CallServiceImpl`、`CallCreatedEvent`、`CallEndedEvent`、`CallEventLogListener`；执行 `mvn -pl :call-core -am "-Dtest=CallControllerTest,CallServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（4 tests, 0 failures）；执行 `mvn -pl :call-core -am package -DskipTests` 通过。MockMvc 已验证 `POST /api/call/outbound` 的 `200/400/500` 三类返回格式，`CallServiceImplTest` 已验证外呼后通过 `EventPublisher` 发布 `CallCreatedEvent`。
+- 降级说明：当前 Codex 运行环境无法连通 FreeSWITCH 8025 端口，因此未在本环境完成真实 `curl -> Controller -> Service -> ESL` 成功外呼验收；仅完成测试级与失败链路验收。
+- 阻塞项：无。
+- 偏差记录：受当前运行环境网络限制，入参校验先采用 Controller 内最小手动校验返回统一 `400`，未额外引入 `spring-boot-starter-validation`；真实 `CallCreatedEvent` 运行日志待在可连 FreeSWITCH 的环境中补验。
+- 下一步建议：在 IDEA 或本机 PowerShell 可直连 FreeSWITCH 的环境中执行真实 `POST /api/call/outbound` 验收；若通过，则回填本任务剩余两项并进入 T5。
+- 需回溯更新 Spec 的点：无。
 
 ---
 
