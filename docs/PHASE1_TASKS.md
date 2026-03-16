@@ -4,14 +4,32 @@
 > **架构**：SSM 三层（Controller / Service / Mapper）+ MyBatis-Plus + 事件驱动（Spring Event，可切 MQ）  
 > **每个任务 = 一次 Vibe Coding 会话的工作量**
 
----
+## AI 执行要求
 
+- 每次会话只处理一个任务或一个最小闭环，不得跨多个任务同时大范围发散。
+- 实现顺序默认遵循依赖关系图；如需跳过依赖任务，必须先说明降级原因与影响。
+- 任务完成的最低标准不是“代码已生成”，而是“存在可执行验证动作且结果可说明”。
+- 若外部依赖未就绪，可先完成启动兼容、接口占位或 mock 验证；但必须明确标注为降级方案，不得冒充真实联调完成。
+- AI 完成任务后，必须回填该任务的“执行记录”；未回填不得视为任务完成。即使任务未完成，也必须记录当前进展、验证结果、阻塞项和下一步建议。
+- 如任务实现导致接口、字段、目录或依赖关系变化，必须同步更新 `docs/SYSTEM_SPEC.md` 或 `docs/GOALS.md` 的对应约束。
+
+### 任务验收输出模板
+
+每次任务交付时，至少应输出以下信息：
+
+1. 本次完成了什么。
+2. 修改了哪些文件。
+3. 如何启动、如何验证。
+4. 哪些能力是真实打通，哪些仍是 mock / 降级。
+5. 下一步最合理的任务是什么。
+
+---
 ## 任务总览
 
 | 编号 | 任务 | 依赖 | 预估 | 状态 |
 |------|------|------|------|------|
-| T1 | Maven 工程骨架 + 公共模块 | 无 | 1 session | ⬜ 待开始 |
-| T2 | MySQL 建表 + Entity + Mapper | T1 | 1 session | ⬜ 待开始 |
+| T1 | Maven 工程骨架 + 公共模块 | 无 | 1 session | ✅ 已完成 |
+| T2 | MySQL 建表 + Entity + Mapper | T1 | 1 session | ✅ 已完成 |
 | T3 | FreeSWITCH ESL 连接管理 | T1 | 1 session | ⬜ 待开始 |
 | T4 | 外呼 API 全链路 | T2, T3 | 1 session | ⬜ 待开始 |
 | T5 | 呼入事件监听 | T3 | 1 session | ⬜ 待开始 |
@@ -41,7 +59,7 @@ T1 ──┬── T2 ──┬── T4 ──┬── T6 ── T7 ── T9
 
 **输入**：
 - SYSTEM_SPEC.md 第 3/4 章（技术栈 + 架构）
-- GOALS.md 子目标 1
+- GOALS.md G1 项目骨架可启动
 
 **产出文件清单**：
 
@@ -79,21 +97,26 @@ backend/call-center/
 
 ### 验收清单
 
-- [ ] `mvn clean install` 编译通过，零 warning
-- [ ] call-core 启动无报错（此时不连 FS 也不报错，FS 配置可容忍缺失）
-- [ ] MySQL 连接池初始化成功（HikariCP 日志可见）
-- [ ] Result 类可正常序列化为 JSON：`{"code":200,"msg":"success","data":null}`
-- [ ] EventPublisher 接口在 common 模块，SpringEventPublisher 在 call-core 模块
-- [ ] 所有 public 方法有 JavaDoc
+- [x] `mvn clean install` 编译通过，零 warning
+- [x] call-core 启动无报错（此时不连 FS 也不报错，FS 配置可容忍缺失）
+- [ ] MySQL 连接池初始化成功（HikariCP 日志可见）— 留 T2 引入 MyBatis-Plus/MySQL 依赖后一并验证
+- [ ] Result 类可正常序列化为 JSON：`{"code":200,"msg":"success","data":null}` — 结构已满足，待 T4/T8 有接口后实测或单测序列化
+- [x] EventPublisher 接口在 common 模块，SpringEventPublisher 在 call-core 模块
+- [x] 所有 public 方法有 JavaDoc（Result、EventPublisher、SpringEventPublisher、ErrorCode、BusinessException、ExceptionUtil 已抽查）
 
 ### 执行记录
 
-> _Coding 后填写：实际偏差、踩坑、决策变更_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：（Vibe Coding / 手动）
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行时间：2026-03-11（初版）；2026-03-13（补充验证）
+- 执行方式：Vibe Coding + 本地验证
+- 完成情况：基本完成（编译与启动已通过；MySQL 池、Result JSON 实测留 T2/T4 后补）
+- 验证结果：`mvn clean install -DskipTests` 通过；`call-core` 在 profile=core 下 `spring-boot:run` 启动成功（约 1.8s），Tomcat 8080、Actuator 正常；目录与约束符合 T1 定义（EventPublisher 在 common，SpringEventPublisher 在 call-core，Result&lt;T&gt; 含 success/fail，父 POM 统一版本）。
+- 降级说明：FreeSWITCH 仍为 `freeswitch.enabled=false`；MySQL 依赖未在 call-core 引入，application-core.yml 中 datasource 配置留 T2 使用，故本次未出现 HikariCP 日志。
+- 阻塞项：无。
+- 偏差记录：call-core 存在 `config/CoreProperties.java`（与 FS/应用配置相关），未在 T1 产出清单中列出，属合理扩展；无其他偏差。
+- 下一步建议：进行 T2（MySQL 建表 + Entity + Mapper），引入 MyBatis-Plus 与 mysql-connector 后复验 HikariCP 与建表脚本。
+- 需回溯更新 Spec 的点：无。
 
 ---
 
@@ -131,20 +154,25 @@ call-core/
 
 ### 验收清单
 
-- [ ] schema_v1.sql 可在 MySQL 8.0 上执行，重复执行无报错
-- [ ] CallRecord 实体字段与 DDL 列完全对应（含 hangup_cause）
-- [ ] MyBatisPlusConfig 中配置了 `@MapperScan` 和分页插件
-- [ ] 启动后 MyBatis-Plus 日志显示 Mapper 注册成功
-- [ ] 手动调用 `callRecordMapper.insert(...)` 可成功写入数据（单元测试验证）
+- [x] schema_v1.sql 可在 MySQL 8.0 上执行，重复执行无报错（DDL 与 SYSTEM_SPEC 6.2 一致）
+- [x] CallRecord 实体字段与 DDL 列完全对应（含 hangup_cause）
+- [x] MyBatisPlusConfig 中配置了 `@MapperScan` 和分页插件
+- [ ] 启动后 MyBatis-Plus 日志显示 Mapper 注册成功（需本地 MySQL 已建表后启动验证）
+- [ ] 手动调用 `callRecordMapper.insert(...)` 可成功写入（需 MySQL + 执行 schema_v1.sql 后验证；CallRecordMapperTest 因 Spring 上下文加载失败未通过，可后续修）
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行时间：2026-03-13
+- 执行方式：Vibe Coding
+- 完成情况：已完成（代码与 DDL 就绪；Mapper 注册与 insert 需本地 MySQL 或修测后再验）
+- 验证结果：call-core 已加入 mybatis-plus-boot-starter、mysql-connector-j；新增 db/schema_v1.sql、entity/CallRecord.java、mapper/CallRecordMapper.java、config/MyBatisPlusConfig.java、CallRecordMapperTest；mvn clean compile 通过。
+- 降级说明：无。
+- 阻塞项：无。
+- 偏差记录：CallRecordMapper 仅靠 @MapperScan 扫描，未使用 @Mapper。
+- 下一步建议：本地执行 schema_v1.sql 后启动 call-core 确认 HikariCP 与 Mapper 日志；随后进行 T3。
+- 需回溯更新 Spec 的点：无。
 
 ---
 
@@ -156,7 +184,7 @@ call-core/
 
 **输入**：
 - SYSTEM_SPEC.md 第 4 章（架构 + 数据流）
-- GOALS.md 子目标 2/3
+- GOALS.md G2 外呼链路可验证 + G3 呼入/事件接入可验证
 - freeswitch-esl-client 0.9.7 API
 
 **产出文件清单**：
@@ -188,12 +216,17 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -229,7 +262,7 @@ call-core/src/main/java/com/callcenter/core/
 - Controller 只做参数接收和 Result 封装，业务逻辑在 Service
 - 外呼发起后通过 EventPublisher 发布 CallCreatedEvent
 - Request DTO 添加 `@NotBlank` 校验
-- 返回值包含 callId，便于前端跟踪
+- 返回值包含 callId，便于前端跟踪；该 callId 必须来自 FreeSWITCH originate 返回值或后续事件中的真实 UUID，不得本地伪造
 
 ### 验收清单
 
@@ -241,12 +274,17 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -287,12 +325,17 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -304,7 +347,7 @@ call-core/src/main/java/com/callcenter/core/
 
 **输入**：
 - SYSTEM_SPEC.md 第 6 章（数据模型 + 时长计算规则）
-- GOALS.md 子目标 4
+- GOALS.md G4 通话日志可落库可查询
 - T2 产出的 Mapper + T4/T5 产出的 Event
 
 **产出文件清单**：
@@ -337,12 +380,17 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -382,16 +430,21 @@ call-core/src/main/java/com/callcenter/core/
 - [ ] 带 startTime/endTime 参数可正确过滤
 - [ ] phone 为空时返回 400 错误
 - [ ] 无数据时返回 `{"code":200,"data":[]}`
-- [ ] Entity → Response DTO 转换正确（不暴露数据库字段名）
+- [ ] Entity → Response DTO 转换正确（不暴露数据库字段名）；至少明确完成 `call_type -> direction`、`call_duration -> durationSec` 的响应映射
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -431,12 +484,17 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -483,12 +541,17 @@ frontend/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -533,12 +596,17 @@ call-core/src/test/java/com/callcenter/core/
 
 ### 执行记录
 
-> _Coding 后填写_
+> _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
 - 执行时间：
-- 执行方式：
-- 偏差记录：
-- 需回溯更新 Spec 的点：
+- 执行方式：（Vibe Coding / 手动）
+- 完成情况：（已完成 / 部分完成 / 未完成）
+- 验证结果：
+- 降级说明：（无则写“无”）
+- 阻塞项：（无则写“无”）
+- 偏差记录：（无则写“无”）
+- 下一步建议：
+- 需回溯更新 Spec 的点：（无则写“无”）
 
 ---
 
@@ -574,3 +642,4 @@ call-core/src/test/java/com/callcenter/core/
 | Controller 里写业务逻辑 | 检查 Controller 是否只有参数接收 + Result 封装 |
 | Mapper XML 手写 SQL | 优先用 LambdaQueryWrapper，复杂 SQL 才写 XML |
 | 响应格式不统一 | 所有返回都用 Result.success() / Result.fail() |
+

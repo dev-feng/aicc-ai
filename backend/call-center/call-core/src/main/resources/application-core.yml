@@ -1,0 +1,27 @@
+call:
+  core:
+    mock-fs-enabled: true
+
+spring:
+  config:
+    activate:
+      on-profile: core
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/aicc_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      initialization-fail-timeout: -1
+      minimum-idle: 5
+      maximum-pool-size: 20
+      connection-timeout: 30000
+      validation-timeout: 5000
+      connection-test-query: SELECT 1
+
+freeswitch:
+  enabled: false
+  host: 127.0.0.1
+  port: 8021
+  password: ClueCon
+  timeout: 30s

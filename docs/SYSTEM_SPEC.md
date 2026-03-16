@@ -17,8 +17,26 @@
 
 **原则：先写 Spec 定边界，再用 Vibe Coding 在边界内高速迭代。**
 
----
+## 0.1 AI 执行铁律
 
+以下规则用于约束 AI 生成代码、修改代码与输出方案，优先级高于普通实现建议：
+
+1. **不得超范围实现**：第一期仅允许交付呼入/呼出、通话日志、最小化 Web、基础查询 API；不得擅自引入 IVR、录音、坐席分配、质检、报表、认证、多租户。
+2. **不得擅自换栈**：必须保持 Java 17、Spring Boot 3.2.x、MyBatis-Plus 3.5.5、MySQL 8.0、FreeSWITCH 1.10.7、Vue；未经明确批准不得替换框架、ORM、数据库或前端技术。
+3. **不得破坏既定分层**：必须遵守 Controller → Service → Mapper 的单向依赖；Controller 不得直接访问 Mapper；事件发布必须通过 `EventPublisher` 抽象，不得在业务代码中直接耦合具体消息中间件。
+4. **优先保证可启动和链路闭环**：当外部依赖未就绪时，优先保证项目可启动、接口可访问、错误可观测；不得通过伪造“成功结果”冒充已完成真实 FS/MySQL 集成。
+5. **允许降级，但必须显式说明**：如 FreeSWITCH、MySQL、前端联调条件不足，可做启动级兼容、Mock 占位或配置降级；但必须在任务执行记录中写明“哪些是真实打通，哪些是降级方案，恢复真实链路还缺什么”。
+6. **每次改动都要可验证**：AI 交付必须绑定到明确的验证动作，例如启动成功、接口返回、数据库写入、日志出现、页面可访问；不得只给代码不说明如何验证。
+7. **文档与实现保持同步**：如实现过程中调整了字段、接口、目录、约束或任务顺序，必须同步回写 `SYSTEM_SPEC.md`、`GOALS.md` 或 `PHASE1_TASKS.md` 中对应条目，不允许代码与文档长期漂移。
+
+### 0.2 AI 默认执行策略
+
+- 默认先完成最小闭环，再补充增强项；禁止为“未来扩展”提前引入当前阶段不用的复杂设计。
+- 默认先打通 outbound，再实现 inbound；先保证日志可落库，再考虑 UI 完整度。
+- 默认优先修复启动失败、配置错误、依赖缺失、接口不通这类阻塞问题，再处理样式、重构、命名优化等次要问题。
+- 默认采用最小必要改动；若存在多种方案，优先选择与本文档一致、改动面最小、最容易验收的方案。
+
+---
 ## 1. 系统愿景与业务目标
 
 ### 1.1 一句话定位
@@ -195,8 +213,8 @@ module/src/main/java/com/callcenter/{module}/
 │   └── XxxResponse.java         # 出参（或 VO）
 ├── event/           # 事件定义与处理（可插拔，预留 MQ 切换）
 │   ├── XxxEvent.java            # 事件对象
-│   ├── EventPublisher.java      # 发布接口（抽象）
-│   ├── SpringEventPublisher.java  # Spring Event 实现（第一期）
+│   ├── EventPublisher.java      # 发布接口（抽象，实际放在 common 模块）
+│   ├── SpringEventPublisher.java  # Spring Event 实现（第一期，建议由具体业务模块提供）
 │   └── XxxEventListener.java   # 事件监听器
 ├── config/          # 模块配置类
 │   └── XxxConfig.java
@@ -334,7 +352,7 @@ ESL 事件字段到数据库实体的映射规则：
 
 映射约束：
 - 必须容忍部分字段缺失（如未接通时 answer_time 为 null）
-- call_id 取 ESL 事件中的 UUID，不自行生成
+- call_id 取 FreeSWITCH/ESL 返回或事件中的真实 UUID，不自行生成；若外呼接口需要立即返回 callId，也必须返回该真实标识而非本地伪造值
 - 时长字段优先取 ESL 计算值，不可取时由 Service 层根据时间戳差值计算
 
 ### 6.2 核心表（第一期）
@@ -473,7 +491,7 @@ CREATE TABLE IF NOT EXISTS `call_record` (
 | 页面 | 功能 | 关键交互 |
 |------|------|---------|
 | 外呼发起 | 输入主叫/被叫号码，点击发起呼叫 | 调用 POST /api/call/outbound，显示成功/失败提示 |
-| 通话日志 | 按号码/时间范围查询通话记录列表 | 调用 GET /api/call/log，展示 direction、caller、callee、startTime、endTime、durationSec |
+| 通话日志 | 按号码/时间范围查询通话记录列表 | 调用 GET /api/call/log，展示 direction、caller、callee、startTime、endTime、durationSec；其中 direction 来自 call_type 映射，durationSec 来自 call_duration 映射 |
 
 **验收**：外呼可触发、呼入可记录、日志可查询、UI 可操作
 
@@ -652,7 +670,6 @@ docs/
 ├── SYSTEM_SPEC.md          # 系统全景规格书（唯一权威源）
 ├── GOALS.md                # 阶段目标定义（v2.0，SSM 三层架构）
 ├── PHASE1_TASKS.md         # 第一阶段任务拆分（含验收清单 + 执行记录）
-├── PROJECT_SPEC.md         # 原始 MVP 规格（归档，仅供参考）
 ├── ARCHITECTURE.md         # 详细架构图（待补充）
 ├── EVAL_SPEC.md            # 评估指标与测试集（待补充）
 ├── adr/                    # 架构决策记录
@@ -663,3 +680,4 @@ docs/
 │   └── OMEGA_PROMPT_v1.md  # 六边形架构版优化器（已失效）
 └── prompt/                 # AI 生成/优化 Prompt（待按新架构重写）
 ```
+
