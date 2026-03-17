@@ -34,7 +34,7 @@
 | T4 | 外呼 API 全链路 | T2, T3 | 1 session | ✅ 已完成 |
 | T5 | 呼入事件监听 | T3 | 1 session | ✅ 已完成 |
 | T6 | 通话日志落库 | T2, T4/T5 | 1 session | 🟡 部分完成 |
-| T7 | 通话日志查询 API | T2, T6 | 1 session | ⬜ 待开始 |
+| T7 | 通话日志查询 API | T2, T6 | 1 session | ✅ 已完成 |
 | T8 | 全局异常处理 + 参数校验 | T1 | 0.5 session | ⬜ 待开始 |
 | T9 | Vue 前端（外呼页 + 日志页） | T4, T7 | 1 session | ⬜ 待开始 |
 | T10 | 端到端联调 + 单元测试 | 全部 | 1 session | ⬜ 待开始 |
@@ -426,25 +426,25 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 验收清单
 
-- [ ] GET /api/call/log?phone=1000 返回该号码的通话记录列表
-- [ ] 带 startTime/endTime 参数可正确过滤
-- [ ] phone 为空时返回 400 错误
-- [ ] 无数据时返回 `{"code":200,"data":[]}`
-- [ ] Entity → Response DTO 转换正确（不暴露数据库字段名）；至少明确完成 `call_type -> direction`、`call_duration -> durationSec` 的响应映射
+- [x] GET /api/call/log?phone=1000 返回该号码的通话记录列表
+- [x] 带 startTime/endTime 参数可正确过滤
+- [x] phone 为空时返回 400 错误
+- [x] 无数据时返回 `{"code":200,"data":[]}`
+- [x] Entity → Response DTO 转换正确（不暴露数据库字段名）；至少明确完成 `call_type -> direction`、`call_duration -> durationSec` 的响应映射
 
 ### 执行记录
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：（Vibe Coding / 手动）
-- 完成情况：（已完成 / 部分完成 / 未完成）
-- 验证结果：
-- 降级说明：（无则写“无”）
-- 阻塞项：（无则写“无”）
-- 偏差记录：（无则写“无”）
-- 下一步建议：
-- 需回溯更新 Spec 的点：（无则写“无”）
+- 执行时间：2026-03-17
+- 执行方式：Vibe Coding + 本地单测验证
+- 完成情况：已完成
+- 验证结果：新增 `CallLogQueryRequest`、`CallLogResponse`，在 `CallController` 中补充 `GET /api/call/log`；`phone` 必填，`startTime/endTime` 可选，返回统一 `Result<List<CallLogResponse>>`；`CallLogService` 新增查询接口，`CallLogServiceImpl` 使用 MyBatis-Plus `LambdaQueryWrapper` 按 `caller/callee` 和时间范围查询，并完成 `call_type -> direction`、`call_duration -> durationSec` 的响应映射；执行 `mvn -pl :call-core -am "-Dtest=CallControllerTest,CallLogServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（11 tests, 0 failures），执行 `mvn -pl :call-core -am -DskipTests compile` 通过。
+- 降级说明：无
+- 阻塞项：无
+- 偏差记录：当前时间过滤使用 `start_time` 作为区间字段；后续若业务明确要求按 `end_time` 或“起止时间任一落入区间”筛选，可再细化查询条件。
+- 下一步建议：进入 T8，补齐全局异常处理与参数校验，统一消除 Controller 内部手写 try/catch 与参数判断。
+- 需回溯更新 Spec 的点：无
 
 ---
 

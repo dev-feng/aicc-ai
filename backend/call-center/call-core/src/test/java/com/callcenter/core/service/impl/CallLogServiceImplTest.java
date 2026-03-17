@@ -1,6 +1,7 @@
 package com.callcenter.core.service.impl;
 
 import com.callcenter.core.entity.CallRecord;
+import com.callcenter.core.dto.CallLogResponse;
 import com.callcenter.core.event.CallCreatedEvent;
 import com.callcenter.core.event.CallEndedEvent;
 import com.callcenter.core.mapper.CallRecordMapper;
@@ -10,9 +11,12 @@ import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -131,5 +135,30 @@ class CallLogServiceImplTest {
         assertThat(record.getRingingDuration()).isEqualTo(60);
         assertThat(record.getAnswerDuration()).isEqualTo(0);
         assertThat(record.getCallDuration()).isEqualTo(60);
+    }
+
+    @Test
+    void query_logs_maps_entity_to_response() {
+        CallRecordMapper mapper = mock(CallRecordMapper.class);
+        when(mapper.selectList(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(
+                CallRecord.builder()
+                        .callId("call-5")
+                        .callType(1)
+                        .caller("1002")
+                        .callee("1003")
+                        .startTime(LocalDateTime.of(2026, 3, 17, 19, 0, 0))
+                        .endTime(LocalDateTime.of(2026, 3, 17, 19, 0, 30))
+                        .callDuration(30)
+                        .hangupCause("NORMAL_CLEARING")
+                        .build()
+        ));
+        CallLogServiceImpl service = new CallLogServiceImpl(mapper);
+
+        List<CallLogResponse> result = service.queryLogs("1002", null, null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).callId()).isEqualTo("call-5");
+        assertThat(result.get(0).direction()).isEqualTo("inbound");
+        assertThat(result.get(0).durationSec()).isEqualTo(30);
     }
 }

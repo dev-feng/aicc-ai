@@ -1,5 +1,7 @@
 package com.callcenter.core.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.callcenter.core.dto.CallLogResponse;
 import com.callcenter.core.entity.CallRecord;
 import com.callcenter.core.event.CallCreatedEvent;
 import com.callcenter.core.event.CallEndedEvent;
@@ -12,8 +14,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * 基于 Mapper 的通话日志落库实现。
@@ -57,6 +61,19 @@ public class CallLogServiceImpl implements CallLogService {
         } catch (DuplicateKeyException ex) {
             log.warn("通话记录已存在，忽略重复写入，callId={}", event.callId());
         }
+    }
+
+    @Override
+    public List<CallLogResponse> queryLogs(String phone, LocalDateTime startTime, LocalDateTime endTime) {
+        LambdaQueryWrapper<CallRecord> queryWrapper = new LambdaQueryWrapper<CallRecord>()
+                .and(wrapper -> wrapper.eq(CallRecord::getCaller, phone).or().eq(CallRecord::getCallee, phone))
+                .ge(startTime != null, CallRecord::getStartTime, startTime)
+                .le(endTime != null, CallRecord::getStartTime, endTime)
+                .orderByDesc(CallRecord::getStartTime);
+
+        return callRecordMapper.selectList(queryWrapper).stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
     }
 
     private CallRecord buildRecord(CallEndedEvent event, CallCreatedEvent createdEvent) {
@@ -106,6 +123,19 @@ public class CallLogServiceImpl implements CallLogService {
 
     private String firstNonBlank(String first, String second) {
         return first != null && !first.isBlank() ? first : second;
+    }
+
+    private CallLogResponse toResponse(CallRecord record) {
+        return new CallLogResponse(
+                record.getCallId(),
+                record.getCallType() != null && record.getCallType() == 1 ? "inbound" : "outbound",
+                record.getCaller(),
+                record.getCallee(),
+                record.getStartTime(),
+                record.getEndTime(),
+                record.getCallDuration(),
+                record.getHangupCause()
+        );
     }
 
     @SafeVarargs
