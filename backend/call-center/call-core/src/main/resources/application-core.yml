@@ -21,9 +21,9 @@ spring:
 
 freeswitch:
   enabled: true
-  host: XXX
-  port: 111
-  password: XXXX
+  host: 115.190.203.136
+  port: 8025
+  password: "1!qazWSX"
   timeout-seconds: 30
   heartbeat-timeout-seconds: 30
   max-retry-attempts: 3

@@ -1,28 +1,37 @@
 package com.callcenter.core.service.impl;
 
+import com.callcenter.common.event.EventPublisher;
 import com.callcenter.common.exception.BusinessException;
 import com.callcenter.common.exception.ErrorCode;
 import com.callcenter.core.config.CoreProperties;
 import com.callcenter.core.config.FreeSwitchConfig;
+import com.callcenter.core.event.CallCreatedEvent;
+import com.callcenter.core.event.CallEndedEvent;
 import com.callcenter.core.service.FreeSwitchConnectionStatus;
 import com.callcenter.core.service.FreeSwitchService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import link.thingscloud.freeswitch.esl.IEslEventListener;
 import link.thingscloud.freeswitch.esl.InboundClient;
 import link.thingscloud.freeswitch.esl.ServerConnectionListener;
 import link.thingscloud.freeswitch.esl.inbound.option.ConnectState;
 import link.thingscloud.freeswitch.esl.inbound.option.InboundClientOption;
 import link.thingscloud.freeswitch.esl.inbound.option.ServerOption;
 import link.thingscloud.freeswitch.esl.transport.CommandResponse;
+import link.thingscloud.freeswitch.esl.transport.event.EslEvent;
 import link.thingscloud.freeswitch.esl.transport.message.EslMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,9 +44,21 @@ import java.util.stream.Collectors;
 public class FreeSwitchServiceImpl implements FreeSwitchService {
 
     private static final Logger log = LoggerFactory.getLogger(FreeSwitchServiceImpl.class);
+    private static final String EVENT_NAME = "Event-Name";
+    private static final String CALL_DIRECTION = "Call-Direction";
+    private static final String CHANNEL_CREATE = "CHANNEL_CREATE";
+    private static final String CHANNEL_HANGUP_COMPLETE = "CHANNEL_HANGUP_COMPLETE";
+    private static final String HEADER_CHANNEL_CALL_UUID = "Channel-Call-UUID";
+    private static final String HEADER_UNIQUE_ID = "Unique-ID";
+    private static final String HEADER_CALLER = "Caller-Caller-ID-Number";
+    private static final String HEADER_CALLEE = "Caller-Destination-Number";
+    private static final String HEADER_EVENT_DATE_TIMESTAMP = "Event-Date-Timestamp";
+    private static final String HEADER_HANGUP_CAUSE = "variable_hangup_cause";
+    private static final String HEADER_HANGUP_CAUSE_FALLBACK = "Hangup-Cause";
 
     private final CoreProperties coreProperties;
     private final FreeSwitchConfig freeSwitchConfig;
+    private final EventPublisher eventPublisher;
     private final InboundClientFactory inboundClientFactory;
     private final Sleeper sleeper;
     private final Set<String> subscribedEvents = new CopyOnWriteArraySet<>();
@@ -55,18 +76,24 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
      * @param freeSwitchConfig freeswitch config
      */
     @Autowired
-    public FreeSwitchServiceImpl(CoreProperties coreProperties, FreeSwitchConfig freeSwitchConfig) {
-        this(coreProperties, freeSwitchConfig, InboundClient::newInstance, Thread::sleep);
+    public FreeSwitchServiceImpl(
+            CoreProperties coreProperties,
+            FreeSwitchConfig freeSwitchConfig,
+            EventPublisher eventPublisher
+    ) {
+        this(coreProperties, freeSwitchConfig, eventPublisher, InboundClient::newInstance, Thread::sleep);
     }
 
     FreeSwitchServiceImpl(
             CoreProperties coreProperties,
             FreeSwitchConfig freeSwitchConfig,
+            EventPublisher eventPublisher,
             InboundClientFactory inboundClientFactory,
             Sleeper sleeper
     ) {
         this.coreProperties = coreProperties;
         this.freeSwitchConfig = freeSwitchConfig;
+        this.eventPublisher = eventPublisher;
         this.inboundClientFactory = inboundClientFactory;
         this.sleeper = sleeper;
     }
@@ -78,14 +105,14 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
     void initialize() {
         if (!freeSwitchConfig.isEnabled()) {
             degraded = true;
-            lastErrorMessage = "FreeSWITCH integration is disabled by configuration.";
-            log.warn("FreeSWITCH integration is disabled.");
+            lastErrorMessage = "配置已禁用FreeSWITCH连接。";
+            log.warn("FreeSWITCH连接已禁用。");
             return;
         }
         if (!freeSwitchConfig.hasRequiredConnectionInfo()) {
             degraded = true;
-            lastErrorMessage = "Missing FreeSWITCH host/port/password configuration.";
-            log.warn("FreeSWITCH configuration is incomplete. Application starts in degraded mode.");
+            lastErrorMessage = "缺少FreeSWITCH host/port/password 配置。";
+            log.warn("FreeSWITCH配置不完整，系统以降级模式启动。");
             return;
         }
         try {
@@ -94,7 +121,7 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
             if (coreProperties.isMockFsEnabled()) {
                 degraded = true;
                 lastErrorMessage = ex.getMessage();
-                log.warn("FreeSWITCH startup check failed, continue in degraded mode: {}", ex.getMessage());
+                log.warn("FreeSWITCH启动探测失败，系统以降级模式继续启动，原因={}", ex.getMessage());
             } else {
                 throw ex;
             }
@@ -111,7 +138,7 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
             try {
                 client.shutdown();
             } catch (RuntimeException ex) {
-                log.warn("FreeSWITCH client shutdown failed: {}", ex.getMessage());
+                log.warn("FreeSWITCH客户端关闭失败，原因={}", ex.getMessage());
             }
         }
         connectState = ConnectState.SHUTDOWN;
@@ -213,6 +240,27 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
         );
     }
 
+    void handleInboundEvent(Map<String, String> headers) {
+        if (headers == null || headers.isEmpty()) {
+            return;
+        }
+        try {
+            if (!"inbound".equalsIgnoreCase(valueOf(headers, CALL_DIRECTION))) {
+                return;
+            }
+            String eventName = valueOf(headers, EVENT_NAME);
+            if (CHANNEL_CREATE.equalsIgnoreCase(eventName)) {
+                publishCallCreated(headers);
+                return;
+            }
+            if (CHANNEL_HANGUP_COMPLETE.equalsIgnoreCase(eventName)) {
+                publishCallEnded(headers);
+            }
+        } catch (RuntimeException ex) {
+            log.warn("解析FreeSWITCH事件失败，事件名={}，原因={}", valueOf(headers, EVENT_NAME), ex.getMessage());
+        }
+    }
+
     private synchronized InboundClient ensureConnected(boolean failIfUnavailable) {
         if (isConnected() && inboundClient != null) {
             return inboundClient;
@@ -243,7 +291,7 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
                 lastFailure = ex;
                 connectState = ConnectState.FAILED;
                 lastErrorMessage = ex.getMessage();
-                log.warn("FreeSWITCH connection attempt {}/{} failed: {}",
+                log.warn("FreeSWITCH连接失败，第{}/{}次尝试，原因={}",
                         attempt, freeSwitchConfig.getMaxRetryAttempts(), ex.getMessage());
                 closeQuietly(candidate);
                 sleepBeforeRetry(attempt);
@@ -273,6 +321,7 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
                 .readTimeoutSeconds(freeSwitchConfig.getHeartbeatTimeoutSeconds())
                 .readerIdleTimeSeconds(freeSwitchConfig.getHeartbeatTimeoutSeconds())
                 .serverConnectionListener(new ConnectionListener())
+                .addListener(new InboundEslEventListener())
                 .addServerOption(serverOption);
         if (!freeSwitchConfig.getStartupEvents().isEmpty()) {
             option.addEvents(freeSwitchConfig.getStartupEvents().toArray(String[]::new));
@@ -304,8 +353,63 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
         try {
             candidate.shutdown();
         } catch (RuntimeException ex) {
-            log.debug("Ignore FreeSWITCH client shutdown error after failed connect: {}", ex.getMessage());
+            log.debug("连接失败后关闭FreeSWITCH客户端时忽略异常，原因={}", ex.getMessage());
         }
+    }
+
+    private void publishCallCreated(Map<String, String> headers) {
+        String callId = callIdOf(headers);
+        if (callId == null) {
+            log.warn("忽略缺少callId的CHANNEL_CREATE事件。");
+            return;
+        }
+        eventPublisher.publish(new CallCreatedEvent(
+                callId,
+                valueOf(headers, HEADER_CALLER),
+                valueOf(headers, HEADER_CALLEE),
+                timestampOf(headers)
+        ));
+    }
+
+    private void publishCallEnded(Map<String, String> headers) {
+        String callId = callIdOf(headers);
+        if (callId == null) {
+            log.warn("忽略缺少callId的CHANNEL_HANGUP_COMPLETE事件。");
+            return;
+        }
+        eventPublisher.publish(new CallEndedEvent(
+                callId,
+                valueOf(headers, HEADER_CALLER),
+                valueOf(headers, HEADER_CALLEE),
+                firstNonBlank(valueOf(headers, HEADER_HANGUP_CAUSE), valueOf(headers, HEADER_HANGUP_CAUSE_FALLBACK)),
+                timestampOf(headers)
+        ));
+    }
+
+    private String callIdOf(Map<String, String> headers) {
+        return firstNonBlank(valueOf(headers, HEADER_CHANNEL_CALL_UUID), valueOf(headers, HEADER_UNIQUE_ID));
+    }
+
+    private LocalDateTime timestampOf(Map<String, String> headers) {
+        String rawTimestamp = valueOf(headers, HEADER_EVENT_DATE_TIMESTAMP);
+        if (rawTimestamp == null) {
+            return null;
+        }
+        long timestamp = Long.parseLong(rawTimestamp);
+        long epochMillis = timestamp > 10_000_000_000_000L ? timestamp / 1000L : timestamp;
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneId.systemDefault());
+    }
+
+    private String valueOf(Map<String, String> headers, String key) {
+        String value = headers.get(key);
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value;
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first : second;
     }
 
     private BusinessException wrapAsBusinessException(String action, RuntimeException ex) {
@@ -320,13 +424,26 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
         @Override
         public void onOpened(ServerOption serverOption) {
             connectState = serverOption.state();
-            log.info("FreeSWITCH connection opened: {}", serverOption.addr());
+            log.info("FreeSWITCH连接成功，地址={}", serverOption.addr());
         }
 
         @Override
         public void onClosed(ServerOption serverOption) {
             connectState = serverOption.state();
-            log.warn("FreeSWITCH connection closed: {}", serverOption.addr());
+            log.warn("FreeSWITCH连接关闭，地址={}", serverOption.addr());
+        }
+    }
+
+    private final class InboundEslEventListener implements IEslEventListener {
+
+        @Override
+        public void eventReceived(String address, EslEvent event) {
+            handleInboundEvent(event == null ? Map.of() : event.getEventHeaders());
+        }
+
+        @Override
+        public void backgroundJobResultReceived(String address, EslEvent event) {
+            log.debug("收到FreeSWITCH后台任务结果，地址={}", address);
         }
     }
 

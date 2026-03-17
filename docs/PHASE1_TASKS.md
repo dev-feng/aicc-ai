@@ -31,8 +31,8 @@
 | T1 | Maven 工程骨架 + 公共模块 | 无 | 1 session | ✅ 已完成 |
 | T2 | MySQL 建表 + Entity + Mapper | T1 | 1 session | ✅ 已完成 |
 | T3 | FreeSWITCH ESL 连接管理 | T1 | 1 session | ✅ 已完成 |
-| T4 | 外呼 API 全链路 | T2, T3 | 1 session | 🟡 部分完成 |
-| T5 | 呼入事件监听 | T3 | 1 session | ⬜ 待开始 |
+| T4 | 外呼 API 全链路 | T2, T3 | 1 session | ✅ 已完成 |
+| T5 | 呼入事件监听 | T3 | 1 session | ✅ 已完成 |
 | T6 | 通话日志落库 | T2, T4/T5 | 1 session | ⬜ 待开始 |
 | T7 | 通话日志查询 API | T2, T6 | 1 session | ⬜ 待开始 |
 | T8 | 全局异常处理 + 参数校验 | T1 | 0.5 session | ⬜ 待开始 |
@@ -266,24 +266,24 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 验收清单
 
-- [ ] curl 调用 POST /api/call/outbound 返回 `{"code":200,"msg":"success","data":{"callId":"xxx"}}`
+- [x] curl 调用 POST /api/call/outbound 返回 `{"code":200,"msg":"success","data":{"callId":"xxx"}}`
 - [x] 参数为空时返回 `{"code":400,"msg":"参数错误",...}`
 - [x] FS 连接失败时返回 `{"code":500,...}` 而非堆栈
-- [ ] 日志中可见 CallCreatedEvent 发布记录
+- [x] 日志中可见 CallCreatedEvent 发布记录
 - [x] Controller 中无直接业务逻辑（纯委托 Service）
 
 ### 执行记录
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：2026-03-16
+- 执行时间：2026-03-16（首次实现）；2026-03-17（真实链路补验）
 - 执行方式：Vibe Coding + 本地验证
-- 完成情况：部分完成
-- 验证结果：新增 `CallController`、`OutboundCallRequest`、`OutboundCallResponse`、`CallService`、`CallServiceImpl`、`CallCreatedEvent`、`CallEndedEvent`、`CallEventLogListener`；执行 `mvn -pl :call-core -am "-Dtest=CallControllerTest,CallServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（4 tests, 0 failures）；执行 `mvn -pl :call-core -am package -DskipTests` 通过。MockMvc 已验证 `POST /api/call/outbound` 的 `200/400/500` 三类返回格式，`CallServiceImplTest` 已验证外呼后通过 `EventPublisher` 发布 `CallCreatedEvent`。
-- 降级说明：当前 Codex 运行环境无法连通 FreeSWITCH 8025 端口，因此未在本环境完成真实 `curl -> Controller -> Service -> ESL` 成功外呼验收；仅完成测试级与失败链路验收。
+- 完成情况：已完成
+- 验证结果：新增 `CallController`、`OutboundCallRequest`、`OutboundCallResponse`、`CallService`、`CallServiceImpl`、`CallCreatedEvent`、`CallEndedEvent`、`CallEventLogListener`；执行 `mvn -pl :call-core -am "-Dtest=CallControllerTest,CallServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（4 tests, 0 failures）；执行 `mvn -pl :call-core -am package -DskipTests` 通过。MockMvc 已验证 `POST /api/call/outbound` 的 `200/400/500` 三类返回格式，`CallServiceImplTest` 已验证外呼后通过 `EventPublisher` 发布 `CallCreatedEvent`。2026-03-17 在真实运行环境中补验通过：`POST /api/call/outbound` 返回 `{"code":200,"msg":"success","data":{"callId":"3dd9691c-600e-484a-836d-f5bd7b47a658"}}`，日志中出现 `CallCreatedEvent published, callId=3dd9691c-600e-484a-836d-f5bd7b47a658, caller=1003, callee=1002`。
+- 降级说明：Codex 运行环境仍无法直连 FreeSWITCH 8025 端口，因此真实成功外呼验收依据为用户在 IDEA/本机环境中的接口返回与日志。
 - 阻塞项：无。
 - 偏差记录：受当前运行环境网络限制，入参校验先采用 Controller 内最小手动校验返回统一 `400`，未额外引入 `spring-boot-starter-validation`；真实 `CallCreatedEvent` 运行日志待在可连 FreeSWITCH 的环境中补验。
-- 下一步建议：在 IDEA 或本机 PowerShell 可直连 FreeSWITCH 的环境中执行真实 `POST /api/call/outbound` 验收；若通过，则回填本任务剩余两项并进入 T5。
+- 下一步建议：进入 T5，补充 FreeSWITCH 事件监听与领域事件映射。
 - 需回溯更新 Spec 的点：无。
 
 ---
@@ -317,25 +317,25 @@ call-core/src/main/java/com/callcenter/core/
 
 ### 验收清单
 
-- [ ] FS 呼入时，日志中可见 CallCreatedEvent 发布
-- [ ] FS 呼入结束时，日志中可见 CallEndedEvent 发布
-- [ ] 事件中 callId/caller/callee/时间戳 正确映射
-- [ ] 模拟异常事件（字段缺失），监听线程不崩溃
-- [ ] 事件通过 EventPublisher 接口发布
+- [x] FS 呼入时，日志中可见 CallCreatedEvent 发布
+- [x] FS 呼入结束时，日志中可见 CallEndedEvent 发布
+- [x] 事件中 callId/caller/callee/时间戳 正确映射
+- [x] 模拟异常事件（字段缺失），监听线程不崩溃
+- [x] 事件通过 EventPublisher 接口发布
 
 ### 执行记录
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：（Vibe Coding / 手动）
-- 完成情况：（已完成 / 部分完成 / 未完成）
-- 验证结果：
-- 降级说明：（无则写“无”）
-- 阻塞项：（无则写“无”）
-- 偏差记录：（无则写“无”）
-- 下一步建议：
-- 需回溯更新 Spec 的点：（无则写“无”）
+- 执行时间：2026-03-17
+- 执行方式：Vibe Coding + 本地单测验证
+- 完成情况：已完成
+- 验证结果：已在 `FreeSwitchServiceImpl` 中接入 ESL 事件监听，监听 `CHANNEL_CREATE` 与 `CHANNEL_HANGUP_COMPLETE`，仅处理 `Call-Direction=inbound` 的事件；按 Spec 6.1 映射 `Channel-Call-UUID/Unique-ID -> callId`、`Caller-Caller-ID-Number -> caller`、`Caller-Destination-Number -> callee`、`Event-Date-Timestamp -> 时间戳`，并通过 `EventPublisher` 发布 `CallCreatedEvent`/`CallEndedEvent`；执行 `mvn -pl :call-core -am -Dtest=FreeSwitchServiceImplTest "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（5 tests, 0 failures），执行 `mvn -pl :call-core -am -DskipTests compile` 通过。2026-03-17 在真实运行环境中补验通过：日志出现 `CallCreatedEvent published, callId=4267bd3f-e993-46c2-9219-7270e97c02b7, caller=1002, callee=1003`、`CallEndedEvent published, callId=4267bd3f-e993-46c2-9219-7270e97c02b7, caller=1002, callee=1003, hangupCause=NORMAL_CLEARING`，同时也验证到 `callee=voicemail` 与 `caller/callee=null` 的异常/分支事件场景，监听线程未崩溃。
+- 降级说明：无
+- 阻塞项：无
+- 偏差记录：为便于离线验证，事件解析逻辑收敛在 `FreeSwitchServiceImpl.handleInboundEvent(...)` 内，并通过单测直接覆盖字段映射与缺失字段场景。真实环境下还观察到部分挂断事件存在 `caller/callee=null` 的情况，说明 FreeSWITCH 在个别分支腿上不会补齐全部字段，当前实现已按容错要求兼容。
+- 下一步建议：进入 T6，实现监听 `CallEndedEvent` 后写入 `call_record` 表，并基于 ESL 字段优先回填时长与挂断原因。
+- 需回溯更新 Spec 的点：无
 
 ---
 
