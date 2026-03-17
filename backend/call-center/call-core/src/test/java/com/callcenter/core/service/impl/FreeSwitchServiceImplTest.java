@@ -113,11 +113,17 @@ class FreeSwitchServiceImplTest {
         assertThat(createdEvent.caller()).isEqualTo("10086");
         assertThat(createdEvent.callee()).isEqualTo("10010");
         assertThat(createdEvent.createdAt()).isEqualTo(LocalDateTime.of(2026, 3, 17, 18, 0));
+        assertThat(createdEvent.callType()).isEqualTo(1);
 
         CallEndedEvent endedEvent = (CallEndedEvent) eventPublisher.events.get(1);
         assertThat(endedEvent.callId()).isEqualTo("call-uuid-1");
         assertThat(endedEvent.hangupCause()).isEqualTo("NORMAL_CLEARING");
-        assertThat(endedEvent.endedAt()).isEqualTo(LocalDateTime.of(2026, 3, 17, 18, 0));
+        assertThat(endedEvent.endedAt()).isEqualTo(LocalDateTime.of(2026, 3, 17, 18, 3));
+        assertThat(endedEvent.callType()).isEqualTo(1);
+        assertThat(endedEvent.startTime()).isEqualTo(LocalDateTime.of(2026, 3, 17, 18, 0));
+        assertThat(endedEvent.ringingTime()).isEqualTo(LocalDateTime.of(2026, 3, 17, 18, 0, 2));
+        assertThat(endedEvent.answerTime()).isEqualTo(LocalDateTime.of(2026, 3, 17, 18, 0, 5));
+        assertThat(endedEvent.callDuration()).isEqualTo(178);
     }
 
     @Test
@@ -145,6 +151,50 @@ class FreeSwitchServiceImplTest {
         assertThat(endedEvent.caller()).isNull();
         assertThat(endedEvent.callee()).isNull();
         assertThat(endedEvent.endedAt()).isNull();
+        assertThat(endedEvent.callType()).isEqualTo(1);
+    }
+
+    @Test
+    void handle_hangup_event_treats_zero_answer_time_as_null() {
+        RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
+        FreeSwitchServiceImpl service = new FreeSwitchServiceImpl(
+                mockEnabledCoreProperties(),
+                validConfig(),
+                eventPublisher,
+                option -> new FakeInboundClient(false),
+                millis -> {
+                }
+        );
+        Map<String, String> headers = inboundHeaders("CHANNEL_HANGUP_COMPLETE");
+        headers.put("Caller-Channel-Answered-Time", "0");
+
+        service.handleInboundEvent(headers);
+
+        assertThat(eventPublisher.events).hasSize(1);
+        CallEndedEvent endedEvent = (CallEndedEvent) eventPublisher.events.get(0);
+        assertThat(endedEvent.answerTime()).isNull();
+    }
+
+    @Test
+    void handle_hangup_event_publishes_outbound_call_ended_event() {
+        RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
+        FreeSwitchServiceImpl service = new FreeSwitchServiceImpl(
+                mockEnabledCoreProperties(),
+                validConfig(),
+                eventPublisher,
+                option -> new FakeInboundClient(false),
+                millis -> {
+                }
+        );
+        Map<String, String> headers = inboundHeaders("CHANNEL_HANGUP_COMPLETE");
+        headers.put("Call-Direction", "outbound");
+
+        service.handleInboundEvent(headers);
+
+        assertThat(eventPublisher.events).hasSize(1);
+        assertThat(eventPublisher.events.get(0)).isInstanceOf(CallEndedEvent.class);
+        CallEndedEvent endedEvent = (CallEndedEvent) eventPublisher.events.get(0);
+        assertThat(endedEvent.callType()).isEqualTo(2);
     }
 
     private static CoreProperties mockEnabledCoreProperties() {
@@ -171,6 +221,11 @@ class FreeSwitchServiceImplTest {
         headers.put("Caller-Caller-ID-Number", "10086");
         headers.put("Caller-Destination-Number", "10010");
         headers.put("Event-Date-Timestamp", "1773741600000000");
+        headers.put("Caller-Channel-Created-Time", "1773741600000000");
+        headers.put("Caller-Channel-Progress-Time", "1773741602000000");
+        headers.put("Caller-Channel-Answered-Time", "1773741605000000");
+        headers.put("Caller-Channel-Hangup-Time", "1773741780000000");
+        headers.put("variable_duration", "178");
         headers.put("variable_hangup_cause", "NORMAL_CLEARING");
         return headers;
     }

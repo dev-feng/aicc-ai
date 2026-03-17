@@ -9,6 +9,7 @@ public record CallCreatedEvent(
         String callId,
         String caller,
         String callee,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        Integer callType
 ) {
 }

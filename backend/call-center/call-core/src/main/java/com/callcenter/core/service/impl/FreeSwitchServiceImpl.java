@@ -55,6 +55,13 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
     private static final String HEADER_EVENT_DATE_TIMESTAMP = "Event-Date-Timestamp";
     private static final String HEADER_HANGUP_CAUSE = "variable_hangup_cause";
     private static final String HEADER_HANGUP_CAUSE_FALLBACK = "Hangup-Cause";
+    private static final String HEADER_CREATED_TIME = "Caller-Channel-Created-Time";
+    private static final String HEADER_PROGRESS_TIME = "Caller-Channel-Progress-Time";
+    private static final String HEADER_PROGRESS_MEDIA_TIME = "Caller-Channel-Progress-Media-Time";
+    private static final String HEADER_ANSWERED_TIME = "Caller-Channel-Answered-Time";
+    private static final String HEADER_HANGUP_TIME = "Caller-Channel-Hangup-Time";
+    private static final String HEADER_VARIABLE_DURATION = "variable_duration";
+    private static final String HEADER_DURATION_FALLBACK = "variable_billsec";
 
     private final CoreProperties coreProperties;
     private final FreeSwitchConfig freeSwitchConfig;
@@ -245,11 +252,8 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
             return;
         }
         try {
-            if (!"inbound".equalsIgnoreCase(valueOf(headers, CALL_DIRECTION))) {
-                return;
-            }
             String eventName = valueOf(headers, EVENT_NAME);
-            if (CHANNEL_CREATE.equalsIgnoreCase(eventName)) {
+            if (CHANNEL_CREATE.equalsIgnoreCase(eventName) && isInbound(headers)) {
                 publishCallCreated(headers);
                 return;
             }
@@ -367,7 +371,8 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
                 callId,
                 valueOf(headers, HEADER_CALLER),
                 valueOf(headers, HEADER_CALLEE),
-                timestampOf(headers)
+                timestampOf(headers),
+                1
         ));
     }
 
@@ -382,7 +387,12 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
                 valueOf(headers, HEADER_CALLER),
                 valueOf(headers, HEADER_CALLEE),
                 firstNonBlank(valueOf(headers, HEADER_HANGUP_CAUSE), valueOf(headers, HEADER_HANGUP_CAUSE_FALLBACK)),
-                timestampOf(headers)
+                endTimestampOf(headers),
+                callTypeOf(headers),
+                preciseTimestampOf(headers, HEADER_CREATED_TIME),
+                ringingTimestampOf(headers),
+                preciseTimestampOf(headers, HEADER_ANSWERED_TIME),
+                durationOf(headers)
         ));
     }
 
@@ -392,12 +402,53 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
 
     private LocalDateTime timestampOf(Map<String, String> headers) {
         String rawTimestamp = valueOf(headers, HEADER_EVENT_DATE_TIMESTAMP);
+        return timestampFromRaw(rawTimestamp);
+    }
+
+    private LocalDateTime preciseTimestampOf(Map<String, String> headers, String key) {
+        return timestampFromRaw(valueOf(headers, key));
+    }
+
+    private LocalDateTime ringingTimestampOf(Map<String, String> headers) {
+        return timestampFromRaw(firstNonBlank(
+                valueOf(headers, HEADER_PROGRESS_TIME),
+                valueOf(headers, HEADER_PROGRESS_MEDIA_TIME)
+        ));
+    }
+
+    private LocalDateTime endTimestampOf(Map<String, String> headers) {
+        return timestampFromRaw(firstNonBlank(
+                valueOf(headers, HEADER_HANGUP_TIME),
+                valueOf(headers, HEADER_EVENT_DATE_TIMESTAMP)
+        ));
+    }
+
+    private LocalDateTime timestampFromRaw(String rawTimestamp) {
         if (rawTimestamp == null) {
             return null;
         }
         long timestamp = Long.parseLong(rawTimestamp);
+        if (timestamp <= 0L) {
+            return null;
+        }
         long epochMillis = timestamp > 10_000_000_000_000L ? timestamp / 1000L : timestamp;
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), ZoneId.systemDefault());
+    }
+
+    private Integer durationOf(Map<String, String> headers) {
+        String rawDuration = firstNonBlank(valueOf(headers, HEADER_VARIABLE_DURATION), valueOf(headers, HEADER_DURATION_FALLBACK));
+        if (rawDuration == null) {
+            return null;
+        }
+        return Integer.parseInt(rawDuration);
+    }
+
+    private Integer callTypeOf(Map<String, String> headers) {
+        return isInbound(headers) ? 1 : 2;
+    }
+
+    private boolean isInbound(Map<String, String> headers) {
+        return "inbound".equalsIgnoreCase(valueOf(headers, CALL_DIRECTION));
     }
 
     private String valueOf(Map<String, String> headers, String key) {

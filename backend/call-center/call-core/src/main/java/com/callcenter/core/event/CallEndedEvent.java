@@ -10,6 +10,11 @@ public record CallEndedEvent(
         String caller,
         String callee,
         String hangupCause,
-        LocalDateTime endedAt
+        LocalDateTime endedAt,
+        Integer callType,
+        LocalDateTime startTime,
+        LocalDateTime ringingTime,
+        LocalDateTime answerTime,
+        Integer callDuration
 ) {
 }

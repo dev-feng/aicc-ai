@@ -33,7 +33,7 @@
 | T3 | FreeSWITCH ESL 连接管理 | T1 | 1 session | ✅ 已完成 |
 | T4 | 外呼 API 全链路 | T2, T3 | 1 session | ✅ 已完成 |
 | T5 | 呼入事件监听 | T3 | 1 session | ✅ 已完成 |
-| T6 | 通话日志落库 | T2, T4/T5 | 1 session | ⬜ 待开始 |
+| T6 | 通话日志落库 | T2, T4/T5 | 1 session | 🟡 部分完成 |
 | T7 | 通话日志查询 API | T2, T6 | 1 session | ⬜ 待开始 |
 | T8 | 全局异常处理 + 参数校验 | T1 | 0.5 session | ⬜ 待开始 |
 | T9 | Vue 前端（外呼页 + 日志页） | T4, T7 | 1 session | ⬜ 待开始 |
@@ -374,23 +374,23 @@ call-core/src/main/java/com/callcenter/core/
 
 - [ ] 外呼结束后，call_record 表自动生成一条记录
 - [ ] 呼入结束后，call_record 表自动生成一条记录
-- [ ] 时长字段计算正确（ringing_duration / answer_duration / call_duration）
-- [ ] 重复事件不导致重复记录（幂等）
+- [x] 时长字段计算正确（ringing_duration / answer_duration / call_duration）
+- [x] 重复事件不导致重复记录（幂等）
 - [ ] 10 次连续测试数据 100% 写入
 
 ### 执行记录
 
 > _每次任务执行后必须回填；未回填不得视为完成。若任务未完成，也必须记录当前进展与阻塞。_
 
-- 执行时间：
-- 执行方式：（Vibe Coding / 手动）
-- 完成情况：（已完成 / 部分完成 / 未完成）
-- 验证结果：
-- 降级说明：（无则写“无”）
-- 阻塞项：（无则写“无”）
-- 偏差记录：（无则写“无”）
-- 下一步建议：
-- 需回溯更新 Spec 的点：（无则写“无”）
+- 执行时间：2026-03-17
+- 执行方式：Vibe Coding + 本地单测验证
+- 完成情况：部分完成
+- 验证结果：新增 `CallLogService`、`CallLogServiceImpl`、`CallEventListener`，由 `CallEventListener` 监听 `CallCreatedEvent`/`CallEndedEvent`，先缓存创建事件，再在挂断时通过 `CallRecordMapper` 写入 `call_record`；`CallEndedEvent` 已补充 `callType/startTime/ringingTime/answerTime/callDuration` 字段，`FreeSwitchServiceImpl` 已从 `CHANNEL_HANGUP_COMPLETE` 中解析 `Caller-Channel-Created-Time`、`Caller-Channel-Progress-Time`、`Caller-Channel-Answered-Time`、`Caller-Channel-Hangup-Time`、`variable_duration` 等字段；执行 `mvn -pl :call-core -am "-Dtest=CallLogServiceImplTest,FreeSwitchServiceImplTest,CallServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test` 通过（10 tests, 0 failures），执行 `mvn -pl :call-core -am -DskipTests compile` 通过。
+- 降级说明：当前仅完成代码层和单测验证，真实 MySQL `call_record` 写入结果仍需在用户本机运行环境中补验。
+- 阻塞项：当前 Codex 运行环境无法代替用户侧完成 FreeSWITCH + MySQL 的真实联调写库验证。
+- 偏差记录：为兼容真实环境中部分挂断事件 `caller/callee` 缺失的情况，`CallLogServiceImpl` 会优先使用 `CallCreatedEvent` 缓存补齐；若关键字段仍缺失，则记录告警并跳过写库。另为满足“外呼结束后自动落库”，`FreeSwitchServiceImpl` 已放宽 `CHANNEL_HANGUP_COMPLETE` 处理范围，外呼挂断事件也会发布 `CallEndedEvent`。
+- 下一步建议：在用户本机执行一次真实外呼和一次真实呼入，挂断后查询 `call_record` 表，核对 `call_type/start_time/end_time/ringing_duration/answer_duration/call_duration/hangup_cause`；验证通过后可将 T6 标记为已完成，否则根据真实事件头补充字段映射。
+- 需回溯更新 Spec 的点：无
 
 ---
 

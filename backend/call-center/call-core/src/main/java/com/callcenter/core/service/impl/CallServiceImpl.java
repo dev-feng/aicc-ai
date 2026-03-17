@@ -25,7 +25,7 @@ public class CallServiceImpl implements CallService {
     @Override
     public String outbound(String caller, String callee) {
         String callId = freeSwitchService.originate(caller, callee);
-        eventPublisher.publish(new CallCreatedEvent(callId, caller, callee, LocalDateTime.now()));
+        eventPublisher.publish(new CallCreatedEvent(callId, caller, callee, LocalDateTime.now(), 2));
         return callId;
     }
 }

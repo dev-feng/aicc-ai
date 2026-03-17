@@ -26,6 +26,7 @@ class CallServiceImplTest {
                 event instanceof CallCreatedEvent createdEvent
                         && createdEvent.callId().equals("job-123")
                         && createdEvent.caller().equals("1000")
-                        && createdEvent.callee().equals("1001")));
+                        && createdEvent.callee().equals("1001")
+                        && createdEvent.callType().equals(2)));
     }
 }
