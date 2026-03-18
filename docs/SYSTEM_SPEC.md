@@ -493,6 +493,10 @@ CREATE TABLE IF NOT EXISTS `call_record` (
 | 外呼发起 | 输入主叫/被叫号码，点击发起呼叫 | 调用 POST /api/call/outbound，显示成功/失败提示 |
 | 通话日志 | 按号码/时间范围查询通话记录列表 | 调用 GET /api/call/log，展示 direction、caller、callee、startTime、endTime、durationSec；其中 direction 来自 call_type 映射，durationSec 来自 call_duration 映射 |
 
+前后端展示约束：
+- 与接口返回直接相关的格式化优先放在后端 DTO 层统一处理，例如 `LocalDateTime -> yyyy-MM-dd HH:mm:ss`；
+- 前端默认只负责中文文案映射、状态标签、颜色和交互，不重复做同类时间字符串格式化，避免多端口径不一致。
+
 **验收**：外呼可触发、呼入可记录、日志可查询、UI 可操作
 
 ### 第二期：AI 引擎 + 坐席管理

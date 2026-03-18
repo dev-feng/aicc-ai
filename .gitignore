@@ -36,3 +36,5 @@ build/
 logs/
 *.log
 backend/call-center/call-core/logs/
+frontend/node_modules/
+frontend/dist/
