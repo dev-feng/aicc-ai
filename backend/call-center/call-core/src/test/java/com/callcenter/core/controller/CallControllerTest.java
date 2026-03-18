@@ -59,7 +59,7 @@ class CallControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.msg").value("参数错误"));
+                .andExpect(jsonPath("$.msg").value("caller: caller不能为空"));
     }
 
     @Test
@@ -105,7 +105,7 @@ class CallControllerTest {
         mockMvc.perform(get("/api/call/log"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.msg").value("参数错误"));
+                .andExpect(jsonPath("$.msg").value("phone: phone不能为空"));
     }
 
     @Test

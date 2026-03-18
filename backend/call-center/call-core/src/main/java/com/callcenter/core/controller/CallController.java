@@ -1,7 +1,5 @@
 package com.callcenter.core.controller;
 
-import com.callcenter.common.exception.BusinessException;
-import com.callcenter.common.exception.ErrorCode;
 import com.callcenter.common.result.Result;
 import com.callcenter.core.dto.CallLogQueryRequest;
 import com.callcenter.core.dto.CallLogResponse;
@@ -9,8 +7,10 @@ import com.callcenter.core.dto.OutboundCallRequest;
 import com.callcenter.core.dto.OutboundCallResponse;
 import com.callcenter.core.service.CallLogService;
 import com.callcenter.core.service.CallService;
-import org.springframework.util.StringUtils;
+import jakarta.validation.Valid;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +21,7 @@ import java.util.List;
 /**
  * 呼叫相关接口。
  */
+@Validated
 @RestController
 @RequestMapping("/api/call")
 public class CallController {
@@ -34,25 +35,13 @@ public class CallController {
     }
 
     @PostMapping("/outbound")
-    public Result<OutboundCallResponse> outbound(@RequestBody OutboundCallRequest request) {
-        if (request == null
-                || !StringUtils.hasText(request.getCaller())
-                || !StringUtils.hasText(request.getCallee())) {
-            return Result.fail(ErrorCode.BAD_REQUEST.getCode(), "参数错误");
-        }
-        try {
-            String callId = callService.outbound(request.getCaller(), request.getCallee());
-            return Result.success(new OutboundCallResponse(callId));
-        } catch (BusinessException ex) {
-            return Result.fail(ex.getCode(), ex.getMessage());
-        }
+    public Result<OutboundCallResponse> outbound(@Valid @RequestBody OutboundCallRequest request) {
+        String callId = callService.outbound(request.getCaller(), request.getCallee());
+        return Result.success(new OutboundCallResponse(callId));
     }
 
     @GetMapping("/log")
-    public Result<List<CallLogResponse>> queryLogs(CallLogQueryRequest request) {
-        if (request == null || !StringUtils.hasText(request.getPhone())) {
-            return Result.fail(ErrorCode.BAD_REQUEST.getCode(), "参数错误");
-        }
+    public Result<List<CallLogResponse>> queryLogs(@Valid @ModelAttribute CallLogQueryRequest request) {
         return Result.success(callLogService.queryLogs(
                 request.getPhone(),
                 request.getStartTime(),

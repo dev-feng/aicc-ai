@@ -1,12 +1,16 @@
 package com.callcenter.core.dto;
 
+import jakarta.validation.constraints.NotBlank;
+
 /**
  * 外呼请求参数。
  */
 public class OutboundCallRequest {
 
+    @NotBlank(message = "caller不能为空")
     private String caller;
 
+    @NotBlank(message = "callee不能为空")
     private String callee;
 
     /**
