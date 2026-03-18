@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </p>
  */
 @SpringBootTest
-@ActiveProfiles("core")
+@ActiveProfiles("test")
 @Transactional
 class CallRecordMapperTest {
 
