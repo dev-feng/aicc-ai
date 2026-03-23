@@ -333,6 +333,35 @@ PSTN来电 → FreeSWITCH → ESL事件 → 音频流
 | GET | /api/agent/status | agentId? | 查询坐席状态 |
 | POST | /api/call/transfer | callId, targetAgentId | 转人工 |
 
+第二阶段接口细化约束：
+
+1. 第二阶段新增 API 仍必须返回统一 `Result` 结构，不引入新的响应包装格式。
+2. 坐席管理与呼叫归属接口优先使用 REST 风格，避免一次引入复杂 command/event API 体系。
+3. 第二阶段允许先提供“最小闭环接口”，例如：
+   - 坐席新增/查询
+   - 分机绑定/解绑
+   - 受管呼叫查询
+   - 转人工
+   - AI 场景触发
+4. 第二阶段接口的时间、状态、枚举格式继续由后端 DTO 统一输出，前端只做中文文案映射和交互展示。
+
+推荐最小 API 范围：
+
+| 方法 | 路径 | 描述 | 备注 |
+|------|------|------|------|
+| POST | /api/agent | 创建坐席 | 最小字段：agentCode, agentName |
+| GET | /api/agent/{agentId} | 查询坐席详情 | 含分机绑定和状态 |
+| POST | /api/agent/bind-extension | 绑定分机 | 一个分机在同一时刻只允许一个有效绑定 |
+| POST | /api/agent/unbind-extension | 解绑分机 | 解绑后该分机默认不再视为受管分机 |
+| GET | /api/call/managed-log | 查询受管通话日志 | 与第一阶段原始日志查询区分 |
+| POST | /api/call/ai/outbound | 发起 AI 外呼 | 第二阶段 AI 流程入口 |
+| POST | /api/call/transfer | 转人工 | 人机协同最小动作 |
+
+接口边界约束：
+- 第一阶段 `/api/call/log` 仍可保留，作为原始通话日志查询接口；
+- 第二阶段如引入受管通话模型，建议新增 `/api/call/managed-log`，避免直接改变第一阶段接口语义；
+- 坐席状态查询允许先基于数据库或内存 Session 返回，不要求第二阶段即强依赖 Redis。
+
 ---
 
 ## 6. 数据模型
@@ -393,6 +422,118 @@ CREATE TABLE IF NOT EXISTS `call_record` (
 | quality_score | 质检评分记录 | 第四期 |
 | call_scenario | AI 场景/话术模板 | 第二期 |
 
+第二阶段数据模型细化：
+
+#### agent_info
+
+用途：描述坐席基础身份和当前状态，是“受管呼叫”的归属基础。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| agent_code | VARCHAR(64) | 坐席编号，业务唯一 |
+| agent_name | VARCHAR(64) | 坐席姓名/显示名 |
+| status | VARCHAR(16) | `offline / idle / busy / pause` |
+| enabled | TINYINT | 是否启用 |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+约束：
+- `agent_code` 必须唯一；
+- 第二阶段不强制实现技能组，但字段可预留扩展位；
+- 坐席状态允许先由应用层维护，不要求第二阶段即与 CTI 全量联动。
+
+#### agent_extension_binding
+
+用途：定义“哪些分机属于本系统管理范围”，是第二阶段最核心的归属关系表。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| agent_id | BIGINT | 关联坐席 |
+| extension_no | VARCHAR(32) | 分机号 |
+| binding_status | VARCHAR(16) | `active / inactive` |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+约束：
+- 同一分机在同一时刻只允许存在一条有效绑定；
+- 未绑定分机默认不视为受管分机；
+- 该表是“过滤 FreeSWITCH 全量事件”的白名单来源。
+
+#### ai_conversation
+
+用途：记录第二阶段 AI 通话过程中的轮次、意图、回复结果，支撑最小 AI 链路追踪。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| call_id | VARCHAR(64) | 对应通话 ID |
+| round_no | INT | 对话轮次 |
+| speaker | VARCHAR(16) | `user / ai / system` |
+| transcript | TEXT | ASR 转写或系统文本 |
+| intent_code | VARCHAR(64) | LLM/规则识别出的意图 |
+| response_text | TEXT | AI 输出文本 |
+| status | VARCHAR(16) | `processing / completed / failed` |
+| create_time | DATETIME | 创建时间 |
+
+约束：
+- `call_id` 必须与通话主链路可关联；
+- 第二阶段允许只记录摘要字段，不要求完整保存音频流；
+- 该表用于验证 AI 流程是否真正跑过，而不是替代通话日志主表。
+
+#### call_scenario
+
+用途：承载第二阶段 AI 场景、欢迎语、兜底话术与简单流程参数。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| scenario_code | VARCHAR(64) | 场景编码 |
+| scenario_name | VARCHAR(128) | 场景名称 |
+| welcome_text | TEXT | 开场欢迎语 |
+| fallback_text | TEXT | 降级兜底话术 |
+| transfer_enabled | TINYINT | 是否允许转人工 |
+| enabled | TINYINT | 是否启用 |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+### 6.4 第二阶段受管呼叫规则
+
+第二阶段开始，系统不再默认把 FreeSWITCH 所有事件都当作业务事件处理。
+
+受管呼叫判定规则：
+
+1. 主叫或被叫至少一侧命中受管分机白名单；
+2. 呼叫不属于明确排除对象，如：
+   - `voicemail`
+   - 内部应用腿
+   - 明显扫描号码/异常号码
+3. 呼叫必须能够关联到坐席、分机或明确的 AI 场景；
+4. 不满足条件的事件允许继续监听，但默认不进入主业务落库链路。
+
+推荐处理策略：
+
+| 事件类型 | 处理方式 |
+|------|------|
+| 受管呼叫主链路 | 正常发布业务事件、更新 Session、写主业务表 |
+| `voicemail` / 内部腿 | 过滤，不写主业务表，可记录调试日志 |
+| 扫描流量 / 异常号码 | 过滤，必要时记录安全日志 |
+| 无法判定归属的呼叫 | 标记为 `unmanaged`，默认不进入业务查询 |
+
+实现约束：
+- “监听全部事件”和“处理全部事件”是两回事；
+- ESL 监听层可以继续全量接收，但业务服务层必须做归属过滤；
+- 第一阶段原始日志能力可保留，第二阶段新增的“受管通话查询”应基于过滤后的业务数据。
+
 ---
 
 ## 7. AI 引擎设计（第二期核心）
@@ -428,6 +569,68 @@ CREATE TABLE IF NOT EXISTS `call_record` (
 | 接口抽象 | AsrService / TtsService 接口，实现层可切换不同供应商 |
 | 降级 | ASR 识别置信度 < 0.6 时请求用户重复 |
 | 并发 | 单实例支持 ≥ 50 路并发流式连接 |
+
+### 7.4 第二阶段最小 AI 流程骨架
+
+第二阶段不追求完整实时语音中台，先建立可扩展的最小流程骨架。
+
+推荐流程：
+
+```
+受管来电/AI外呼
+  → 创建 CallSession
+  → 读取 call_scenario
+  → 播放欢迎语（TTS 或预置文本）
+  → 获取用户输入（ASR 或按键占位）
+  → LLM/规则判断意图
+  → 输出回复
+  → 判断：
+       - 结束通话
+       - 继续对话
+       - 转人工
+```
+
+最小状态集合：
+
+| 状态 | 说明 |
+|------|------|
+| created | 会话已创建 |
+| greeting | 正在播放欢迎语 |
+| listening | 正在等待用户输入 |
+| thinking | 正在调用 LLM/规则引擎 |
+| speaking | 正在输出 TTS/回复 |
+| transfer_pending | 触发转人工 |
+| transferred | 已转人工 |
+| completed | 流程结束 |
+| failed | 流程失败或降级结束 |
+
+流程设计约束：
+- 第二阶段允许用 mock ASR/TTS/LLM 验证状态流转；
+- AI 流程服务必须依赖抽象接口，不直接耦合具体 SDK；
+- 必须能把流程状态和 `callId` 关联，方便日志与查询。
+
+### 7.5 人机协同边界
+
+第二阶段的人机协同只做最小闭环，不实现完整 ACD。
+
+最小要求：
+
+1. AI 无法处理时可触发“转人工”；
+2. 转人工目标优先选择当前可用坐席绑定的受管分机；
+3. 若无可用坐席，系统应返回明确降级结果，而不是静默失败；
+4. 转人工动作需要在日志、事件或 Session 状态中可追踪。
+
+推荐状态流转：
+
+```
+AI处理中 → transfer_pending → transferred
+                     └→ transfer_failed → completed
+```
+
+第二阶段不做：
+- 多技能组路由；
+- 复杂排队策略；
+- 坐席工作台实时辅助推荐。
 
 ---
 
