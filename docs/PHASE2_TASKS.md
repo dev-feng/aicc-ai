@@ -464,3 +464,4 @@ backend/call-center/call-core/src/test/
 - 偏差记录：
 - 下一步建议：
 - 需回溯更新 Spec 的点：
+> T13 更新（2026-03-24）：已完成。已新增 `ManagedCallFilterService` 过滤 `voicemail`、未绑定分机和明显异常号码；`FreeSwitchServiceImpl` 已在发布事件前执行受管呼叫判断，并记录过滤原因。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=FreeSwitchServiceImplTest,ManagedCallFilterServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`。

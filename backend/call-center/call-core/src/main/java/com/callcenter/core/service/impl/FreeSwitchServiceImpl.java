@@ -9,6 +9,7 @@ import com.callcenter.core.event.CallCreatedEvent;
 import com.callcenter.core.event.CallEndedEvent;
 import com.callcenter.core.service.FreeSwitchConnectionStatus;
 import com.callcenter.core.service.FreeSwitchService;
+import com.callcenter.core.service.ManagedCallFilterService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import link.thingscloud.freeswitch.esl.IEslEventListener;
@@ -66,9 +67,11 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
     private final CoreProperties coreProperties;
     private final FreeSwitchConfig freeSwitchConfig;
     private final EventPublisher eventPublisher;
+    private final ManagedCallFilterService managedCallFilterService;
     private final InboundClientFactory inboundClientFactory;
     private final Sleeper sleeper;
     private final Set<String> subscribedEvents = new CopyOnWriteArraySet<>();
+    private final Set<String> acceptedManagedCallIds = new CopyOnWriteArraySet<>();
     private final AtomicInteger lastConnectAttempts = new AtomicInteger();
 
     private volatile InboundClient inboundClient;
@@ -86,21 +89,31 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
     public FreeSwitchServiceImpl(
             CoreProperties coreProperties,
             FreeSwitchConfig freeSwitchConfig,
-            EventPublisher eventPublisher
+            EventPublisher eventPublisher,
+            ManagedCallFilterService managedCallFilterService
     ) {
-        this(coreProperties, freeSwitchConfig, eventPublisher, InboundClient::newInstance, Thread::sleep);
+        this(
+                coreProperties,
+                freeSwitchConfig,
+                eventPublisher,
+                managedCallFilterService,
+                InboundClient::newInstance,
+                Thread::sleep
+        );
     }
 
     FreeSwitchServiceImpl(
             CoreProperties coreProperties,
             FreeSwitchConfig freeSwitchConfig,
             EventPublisher eventPublisher,
+            ManagedCallFilterService managedCallFilterService,
             InboundClientFactory inboundClientFactory,
             Sleeper sleeper
     ) {
         this.coreProperties = coreProperties;
         this.freeSwitchConfig = freeSwitchConfig;
         this.eventPublisher = eventPublisher;
+        this.managedCallFilterService = managedCallFilterService;
         this.inboundClientFactory = inboundClientFactory;
         this.sleeper = sleeper;
     }
@@ -253,16 +266,69 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
         }
         try {
             String eventName = valueOf(headers, EVENT_NAME);
+            String callId = callIdOf(headers);
+            String caller = valueOf(headers, HEADER_CALLER);
+            String callee = valueOf(headers, HEADER_CALLEE);
             if (CHANNEL_CREATE.equalsIgnoreCase(eventName) && isInbound(headers)) {
-                publishCallCreated(headers);
+                if (!shouldProcessEvent(eventName, callId, caller, callee, false)) {
+                    return;
+                }
+                publishCallCreated(headers, callId, caller, callee);
+                if (callId != null) {
+                    acceptedManagedCallIds.add(callId);
+                }
                 return;
             }
             if (CHANNEL_HANGUP_COMPLETE.equalsIgnoreCase(eventName)) {
-                publishCallEnded(headers);
+                if (!shouldProcessEvent(
+                        eventName,
+                        callId,
+                        caller,
+                        callee,
+                        callId != null && acceptedManagedCallIds.contains(callId)
+                )) {
+                    return;
+                }
+                publishCallEnded(headers, callId, caller, callee);
+                if (callId != null) {
+                    acceptedManagedCallIds.remove(callId);
+                }
             }
         } catch (RuntimeException ex) {
             log.warn("解析FreeSWITCH事件失败，事件名={}，原因={}", valueOf(headers, EVENT_NAME), ex.getMessage());
         }
+    }
+
+    private boolean shouldProcessEvent(
+            String eventName,
+            String callId,
+            String caller,
+            String callee,
+            boolean alreadyAccepted
+    ) {
+        if (alreadyAccepted) {
+            return true;
+        }
+        ManagedCallFilterService.ManagedCallDecision decision = managedCallFilterService.evaluate(callId, caller, callee);
+        if (!decision.accepted()) {
+            log.info(
+                    "忽略非受管呼叫事件，event={}, callId={}, caller={}, callee={}, 原因={}",
+                    eventName,
+                    callId,
+                    caller,
+                    callee,
+                    decision.reason()
+            );
+            return false;
+        }
+        log.debug(
+                "受管呼叫事件通过过滤，event={}, callId={}, extensionNo={}, agentId={}",
+                eventName,
+                callId,
+                decision.extensionNo(),
+                decision.agentId()
+        );
+        return true;
     }
 
     private synchronized InboundClient ensureConnected(boolean failIfUnavailable) {
@@ -361,31 +427,29 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
         }
     }
 
-    private void publishCallCreated(Map<String, String> headers) {
-        String callId = callIdOf(headers);
+    private void publishCallCreated(Map<String, String> headers, String callId, String caller, String callee) {
         if (callId == null) {
             log.warn("忽略缺少callId的CHANNEL_CREATE事件。");
             return;
         }
         eventPublisher.publish(new CallCreatedEvent(
                 callId,
-                valueOf(headers, HEADER_CALLER),
-                valueOf(headers, HEADER_CALLEE),
+                caller,
+                callee,
                 timestampOf(headers),
                 1
         ));
     }
 
-    private void publishCallEnded(Map<String, String> headers) {
-        String callId = callIdOf(headers);
+    private void publishCallEnded(Map<String, String> headers, String callId, String caller, String callee) {
         if (callId == null) {
             log.warn("忽略缺少callId的CHANNEL_HANGUP_COMPLETE事件。");
             return;
         }
         eventPublisher.publish(new CallEndedEvent(
                 callId,
-                valueOf(headers, HEADER_CALLER),
-                valueOf(headers, HEADER_CALLEE),
+                caller,
+                callee,
                 firstNonBlank(valueOf(headers, HEADER_HANGUP_CAUSE), valueOf(headers, HEADER_HANGUP_CAUSE_FALLBACK)),
                 endTimestampOf(headers),
                 callTypeOf(headers),

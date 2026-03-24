@@ -7,6 +7,7 @@ import com.callcenter.core.config.FreeSwitchConfig;
 import com.callcenter.core.event.CallCreatedEvent;
 import com.callcenter.core.event.CallEndedEvent;
 import com.callcenter.core.service.FreeSwitchConnectionStatus;
+import com.callcenter.core.service.ManagedCallFilterService;
 import link.thingscloud.freeswitch.esl.InboundClient;
 import link.thingscloud.freeswitch.esl.inbound.option.InboundClientOption;
 import link.thingscloud.freeswitch.esl.transport.CommandResponse;
@@ -36,6 +37,7 @@ class FreeSwitchServiceImplTest {
                 mockEnabledCoreProperties(),
                 validConfig(),
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(attempts.incrementAndGet() < 3),
                 millis -> {
                 }
@@ -57,6 +59,7 @@ class FreeSwitchServiceImplTest {
                 mockEnabledCoreProperties(),
                 validConfig(),
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(true),
                 millis -> {
                 }
@@ -76,6 +79,7 @@ class FreeSwitchServiceImplTest {
                 coreProperties,
                 config,
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(false),
                 millis -> {
                 }
@@ -96,6 +100,7 @@ class FreeSwitchServiceImplTest {
                 mockEnabledCoreProperties(),
                 validConfig(),
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(false),
                 millis -> {
                 }
@@ -133,6 +138,7 @@ class FreeSwitchServiceImplTest {
                 mockEnabledCoreProperties(),
                 validConfig(),
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(false),
                 millis -> {
                 }
@@ -161,6 +167,7 @@ class FreeSwitchServiceImplTest {
                 mockEnabledCoreProperties(),
                 validConfig(),
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(false),
                 millis -> {
                 }
@@ -182,6 +189,7 @@ class FreeSwitchServiceImplTest {
                 mockEnabledCoreProperties(),
                 validConfig(),
                 eventPublisher,
+                managedCallFilterService(true),
                 option -> new FakeInboundClient(false),
                 millis -> {
                 }
@@ -195,6 +203,49 @@ class FreeSwitchServiceImplTest {
         assertThat(eventPublisher.events.get(0)).isInstanceOf(CallEndedEvent.class);
         CallEndedEvent endedEvent = (CallEndedEvent) eventPublisher.events.get(0);
         assertThat(endedEvent.callType()).isEqualTo(2);
+    }
+
+    @Test
+    void handle_inbound_event_ignores_unmanaged_calls() {
+        RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
+        FreeSwitchServiceImpl service = new FreeSwitchServiceImpl(
+                mockEnabledCoreProperties(),
+                validConfig(),
+                eventPublisher,
+                managedCallFilterService(false),
+                option -> new FakeInboundClient(false),
+                millis -> {
+                }
+        );
+
+        service.handleInboundEvent(inboundHeaders("CHANNEL_CREATE"));
+
+        assertThat(eventPublisher.events).isEmpty();
+    }
+
+    @Test
+    void handle_inbound_event_allows_hangup_after_managed_create_even_when_hangup_numbers_are_missing() {
+        RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
+        FreeSwitchServiceImpl service = new FreeSwitchServiceImpl(
+                mockEnabledCoreProperties(),
+                validConfig(),
+                eventPublisher,
+                managedCallFilterService(true),
+                option -> new FakeInboundClient(false),
+                millis -> {
+                }
+        );
+
+        service.handleInboundEvent(inboundHeaders("CHANNEL_CREATE"));
+        Map<String, String> hangupHeaders = new HashMap<>();
+        hangupHeaders.put("Event-Name", "CHANNEL_HANGUP_COMPLETE");
+        hangupHeaders.put("Call-Direction", "inbound");
+        hangupHeaders.put("Channel-Call-UUID", "call-uuid-1");
+
+        service.handleInboundEvent(hangupHeaders);
+
+        assertThat(eventPublisher.events).hasSize(2);
+        assertThat(eventPublisher.events.get(1)).isInstanceOf(CallEndedEvent.class);
     }
 
     private static CoreProperties mockEnabledCoreProperties() {
@@ -228,6 +279,12 @@ class FreeSwitchServiceImplTest {
         headers.put("variable_duration", "178");
         headers.put("variable_hangup_cause", "NORMAL_CLEARING");
         return headers;
+    }
+
+    private static ManagedCallFilterService managedCallFilterService(boolean accept) {
+        return (callId, caller, callee) -> accept
+                ? ManagedCallFilterService.ManagedCallDecision.accepted(1L, "10010")
+                : ManagedCallFilterService.ManagedCallDecision.rejected("unmanaged call");
     }
 
     private static final class RecordingEventPublisher implements EventPublisher {
