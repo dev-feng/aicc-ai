@@ -15,6 +15,8 @@ public class CallSession {
 
     public static final String STATUS_RINGING = "ringing";
     public static final String STATUS_ANSWERED = "answered";
+    public static final String STATUS_THINKING = "thinking";
+    public static final String STATUS_SPEAKING = "speaking";
     public static final String STATUS_COMPLETED = "completed";
     public static final String STATUS_TRANSFER_PENDING = "transfer_pending";
     public static final String STATUS_TRANSFERRED = "transferred";
