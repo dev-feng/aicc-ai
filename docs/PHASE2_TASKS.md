@@ -18,7 +18,7 @@
 | 编号 | 任务 | 依赖 | 预估 | 状态 |
 |------|------|------|------|------|
 | T11 | 坐席/分机基础数据模型 | 阶段一全部 | 1 session | ✅ 已完成 |
-| T12 | 坐席管理 API | T11 | 1 session | ⬜ 待开始 |
+| T12 | 坐席管理 API | T11 | 1 session | ✅ 已完成 |
 | T13 | 受管呼叫过滤与归属 | T11, 阶段一 T5/T6 | 1 session | ⬜ 待开始 |
 | T14 | 通话会话 Session 管理 | T13 | 1 session | ⬜ 待开始 |
 | T15 | ASR/TTS/LLM 抽象层 | T14 | 1 session | ⬜ 待开始 |
@@ -127,21 +127,35 @@ backend/call-center/call-core/src/main/java/com/callcenter/core/
 
 ### 验收清单
 
-- [ ] 可新增坐席
-- [ ] 可绑定/解绑分机
-- [ ] 可查询坐席及其分机关系
+- [x] 可新增坐席
+- [x] 可绑定/解绑分机
+- [x] 可查询坐席及其分机关系
 
 ### 执行记录
 
-- 执行时间：
-- 执行方式：
-- 完成情况：
+- 执行时间：2026-03-23
+- 执行方式：Vibe Coding + 本地单元测试 / WebMvcTest / H2 集成测试
+- 完成情况：已完成
 - 验证结果：
+  - 新增 `AgentController`
+  - 新增 `AgentService`、`AgentServiceImpl`
+  - 新增 DTO：`AgentCreateRequest`、`AgentBindExtensionRequest`、`AgentResponse`
+  - 新增测试：`AgentControllerTest`、`AgentServiceImplTest`
+  - 执行 `mvn test` 通过，当前共 `32` 个测试全部通过
+  - 已验证接口能力：
+    - 创建坐席
+    - 绑定分机
+    - 解绑分机
+    - 查询坐席及其分机关系
 - 降级说明：
-- 阻塞项：
+  - 当前仅提供最小 API 闭环，未实现坐席列表、分页、状态流转管理
+  - 绑定关系当前按“同一分机唯一绑定”处理，未支持历史版本化绑定记录
+- 阻塞项：无
 - 偏差记录：
-- 下一步建议：
-- 需回溯更新 Spec 的点：
+  - 坐席签入/签出 API 暂未实现，本次优先落地第二阶段最小 CRUD/查询闭环，与 T12 定义一致
+  - `AgentResponse` 当前直接返回有效分机号列表，未额外拆分绑定详情对象
+- 下一步建议：进入 T13，开始把 FreeSWITCH 全量事件过滤为“受管呼叫”
+- 需回溯更新 Spec 的点：无，当前实现与已补充的第二阶段 API 边界一致
 
 ---
 ## T13: 受管呼叫过滤与归属
