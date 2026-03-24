@@ -4,6 +4,7 @@ import com.callcenter.common.exception.BusinessException;
 import com.callcenter.core.ai.model.AiCallFlowResult;
 import com.callcenter.core.event.CallCreatedEvent;
 import com.callcenter.core.model.CallSession;
+import com.callcenter.core.service.AgentRoutingService;
 import com.callcenter.core.service.impl.CallSessionServiceImpl;
 import org.junit.jupiter.api.Test;
 
@@ -27,10 +28,11 @@ class AiCallFlowServiceImplTest {
         AiCallFlowServiceImpl service = new AiCallFlowServiceImpl(
                 sessionService,
                 new MockLlmServiceImpl(),
-                new MockTtsServiceImpl()
+                new MockTtsServiceImpl(),
+                successfulRoutingService(sessionService)
         );
 
-        AiCallFlowResult result = service.processText("call-1", "请帮我记录工单");
+        AiCallFlowResult result = service.processText("call-1", "请帮我记录客户咨询内容");
 
         assertThat(result.intentCode()).isEqualTo("collect_info");
         assertThat(result.transferToHuman()).isFalse();
@@ -41,7 +43,7 @@ class AiCallFlowServiceImplTest {
     }
 
     @Test
-    void process_text_marks_transfer_pending_when_llm_requires_human() {
+    void process_text_marks_transferred_when_llm_requires_human() {
         CallSessionServiceImpl sessionService = new CallSessionServiceImpl();
         sessionService.rememberCallCreated(new CallCreatedEvent(
                 "call-2",
@@ -53,15 +55,16 @@ class AiCallFlowServiceImplTest {
         AiCallFlowServiceImpl service = new AiCallFlowServiceImpl(
                 sessionService,
                 new MockLlmServiceImpl(),
-                new MockTtsServiceImpl()
+                new MockTtsServiceImpl(),
+                successfulRoutingService(sessionService)
         );
 
-        AiCallFlowResult result = service.processText("call-2", "我要人工");
+        AiCallFlowResult result = service.processText("call-2", "我要转人工");
 
         assertThat(result.transferToHuman()).isTrue();
-        assertThat(result.sessionStatus()).isEqualTo(CallSession.STATUS_TRANSFER_PENDING);
+        assertThat(result.sessionStatus()).isEqualTo(CallSession.STATUS_TRANSFERRED);
         assertThat(sessionService.getSession("call-2").orElseThrow().getCurrentStatus())
-                .isEqualTo(CallSession.STATUS_TRANSFER_PENDING);
+                .isEqualTo(CallSession.STATUS_TRANSFERRED);
     }
 
     @Test
@@ -69,11 +72,25 @@ class AiCallFlowServiceImplTest {
         AiCallFlowServiceImpl service = new AiCallFlowServiceImpl(
                 new CallSessionServiceImpl(),
                 new MockLlmServiceImpl(),
-                new MockTtsServiceImpl()
+                new MockTtsServiceImpl(),
+                successfulRoutingService(new CallSessionServiceImpl())
         );
 
         assertThatThrownBy(() -> service.processText("missing", "测试"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("call session不存在");
+    }
+
+    private static AgentRoutingService successfulRoutingService(CallSessionServiceImpl sessionService) {
+        return (callId, targetAgentId) -> {
+            sessionService.updateSessionStatus(callId, CallSession.STATUS_TRANSFERRED);
+            return new AgentRoutingService.AgentRoutingResult(
+                    callId,
+                    1L,
+                    "1001",
+                    CallSession.STATUS_TRANSFERRED,
+                    true
+            );
+        };
     }
 }

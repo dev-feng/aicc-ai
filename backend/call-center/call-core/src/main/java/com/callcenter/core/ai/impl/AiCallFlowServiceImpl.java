@@ -9,6 +9,7 @@ import com.callcenter.core.ai.model.AiCallFlowResult;
 import com.callcenter.core.ai.model.LlmResult;
 import com.callcenter.core.ai.model.TtsResult;
 import com.callcenter.core.model.CallSession;
+import com.callcenter.core.service.AgentRoutingService;
 import com.callcenter.core.service.CallSessionService;
 import org.springframework.stereotype.Service;
 
@@ -18,15 +19,18 @@ public class AiCallFlowServiceImpl implements AiCallFlowService {
     private final CallSessionService callSessionService;
     private final LlmService llmService;
     private final TtsService ttsService;
+    private final AgentRoutingService agentRoutingService;
 
     public AiCallFlowServiceImpl(
             CallSessionService callSessionService,
             LlmService llmService,
-            TtsService ttsService
+            TtsService ttsService,
+            AgentRoutingService agentRoutingService
     ) {
         this.callSessionService = callSessionService;
         this.llmService = llmService;
         this.ttsService = ttsService;
+        this.agentRoutingService = agentRoutingService;
     }
 
     @Override
@@ -45,13 +49,14 @@ public class AiCallFlowServiceImpl implements AiCallFlowService {
         LlmResult llmResult = llmService.generateReply(callId, transcript);
 
         if (llmResult.transferToHuman()) {
-            CallSession session = callSessionService.updateSessionStatus(callId, CallSession.STATUS_TRANSFER_PENDING);
+            callSessionService.updateSessionStatus(callId, CallSession.STATUS_TRANSFER_PENDING);
+            AgentRoutingService.AgentRoutingResult routingResult = agentRoutingService.transferToAgent(callId, null);
             return new AiCallFlowResult(
                     callId,
                     transcript,
                     llmResult.intentCode(),
                     llmResult.replyText(),
-                    session.getCurrentStatus(),
+                    routingResult.status(),
                     true,
                     llmResult.mock()
             );
