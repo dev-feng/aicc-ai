@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CoreProperties {
 
     private boolean mockFsEnabled = true;
+    private boolean mockAiEnabled = true;
 
     /**
      * 获取是否允许在缺少 FS 配置时以降级模式启动。
@@ -26,5 +27,13 @@ public class CoreProperties {
      */
     public void setMockFsEnabled(boolean mockFsEnabled) {
         this.mockFsEnabled = mockFsEnabled;
+    }
+
+    public boolean isMockAiEnabled() {
+        return mockAiEnabled;
+    }
+
+    public void setMockAiEnabled(boolean mockAiEnabled) {
+        this.mockAiEnabled = mockAiEnabled;
     }
 }

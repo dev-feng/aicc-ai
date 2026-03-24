@@ -467,3 +467,5 @@ backend/call-center/call-core/src/test/
 > T13 更新（2026-03-24）：已完成。已新增 `ManagedCallFilterService` 过滤 `voicemail`、未绑定分机和明显异常号码；`FreeSwitchServiceImpl` 已在发布事件前执行受管呼叫判断，并记录过滤原因。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=FreeSwitchServiceImplTest,ManagedCallFilterServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`。
 
 > T14 更新（2026-03-24）：已完成。已新增内存级 `CallSession` / `CallSessionService`，并在 `CallEventListener` 中把 `CallCreatedEvent`、`CallEndedEvent` 同步写入 Session 状态流。当前支持按 `callId` 查询会话、列出活跃会话、更新会话状态，并覆盖“先创建后挂断”“只有挂断事件”两类场景。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=CallSessionServiceImplTest,CallEventListenerTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`、`mvn test`。
+
+> T15 更新（2026-03-24）：已完成。已新增统一的 `AsrService`、`TtsService`、`LlmService` 接口，以及 `MockAsrServiceImpl`、`MockTtsServiceImpl`、`MockLlmServiceImpl` 三个 mock 实现；返回对象统一携带 `mock` 标识，用于区分模拟链路与真实链路。新增配置项 `call.core.mock-ai-enabled=true`，默认启用 mock AI 能力。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=MockAiServicesTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`、`mvn test`。

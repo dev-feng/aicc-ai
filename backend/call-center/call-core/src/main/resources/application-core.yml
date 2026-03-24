@@ -1,6 +1,7 @@
 call:
   core:
     mock-fs-enabled: true
+    mock-ai-enabled: true
 
 spring:
   config:
