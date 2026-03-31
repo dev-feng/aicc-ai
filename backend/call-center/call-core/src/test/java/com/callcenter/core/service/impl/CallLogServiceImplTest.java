@@ -138,6 +138,70 @@ class CallLogServiceImplTest {
     }
 
     @Test
+    void record_outbound_call_prefers_created_event_numbers_over_hangup_leg_numbers() {
+        CallRecordMapper mapper = mock(CallRecordMapper.class);
+        CallLogServiceImpl service = new CallLogServiceImpl(mapper);
+        service.rememberCallCreated(new CallCreatedEvent(
+                "call-6",
+                "1002",
+                "1003",
+                LocalDateTime.of(2026, 3, 31, 14, 54, 12),
+                2
+        ));
+
+        service.recordCallEnded(new CallEndedEvent(
+                "call-6",
+                "1003",
+                "1003",
+                "NORMAL_CLEARING",
+                LocalDateTime.of(2026, 3, 31, 14, 54, 35),
+                2,
+                LocalDateTime.of(2026, 3, 31, 14, 54, 13),
+                LocalDateTime.of(2026, 3, 31, 14, 54, 13),
+                null,
+                22
+        ));
+
+        ArgumentCaptor<CallRecord> captor = ArgumentCaptor.forClass(CallRecord.class);
+        verify(mapper).insert(captor.capture());
+        CallRecord record = captor.getValue();
+        assertThat(record.getCaller()).isEqualTo("1002");
+        assertThat(record.getCallee()).isEqualTo("1003");
+    }
+
+    @Test
+    void record_inbound_call_prefers_created_event_numbers_over_hangup_leg_numbers() {
+        CallRecordMapper mapper = mock(CallRecordMapper.class);
+        CallLogServiceImpl service = new CallLogServiceImpl(mapper);
+        service.rememberCallCreated(new CallCreatedEvent(
+                "call-7",
+                "13800138000",
+                "1002",
+                LocalDateTime.of(2026, 3, 31, 15, 10, 0),
+                1
+        ));
+
+        service.recordCallEnded(new CallEndedEvent(
+                "call-7",
+                "1002",
+                "1002",
+                "NORMAL_CLEARING",
+                LocalDateTime.of(2026, 3, 31, 15, 10, 30),
+                1,
+                LocalDateTime.of(2026, 3, 31, 15, 10, 0),
+                LocalDateTime.of(2026, 3, 31, 15, 10, 1),
+                LocalDateTime.of(2026, 3, 31, 15, 10, 3),
+                30
+        ));
+
+        ArgumentCaptor<CallRecord> captor = ArgumentCaptor.forClass(CallRecord.class);
+        verify(mapper).insert(captor.capture());
+        CallRecord record = captor.getValue();
+        assertThat(record.getCaller()).isEqualTo("13800138000");
+        assertThat(record.getCallee()).isEqualTo("1002");
+    }
+
+    @Test
     void query_logs_maps_entity_to_response() {
         CallRecordMapper mapper = mock(CallRecordMapper.class);
         when(mapper.selectList(org.mockito.ArgumentMatchers.any())).thenReturn(List.of(

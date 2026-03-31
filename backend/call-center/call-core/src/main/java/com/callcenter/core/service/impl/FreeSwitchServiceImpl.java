@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -170,9 +171,11 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "caller/callee must not be blank");
         }
         InboundClient client = ensureConnected(true);
+        String callId = UUID.randomUUID().toString();
         String dialString = String.format(freeSwitchConfig.getOriginateTemplate(), callee);
         String originateArgs = String.format(
-                "{origination_caller_id_number=%s}%s &park()",
+                "{origination_uuid=%s,origination_caller_id_number=%s}%s &park()",
+                callId,
                 caller,
                 dialString
         );
@@ -185,7 +188,8 @@ public class FreeSwitchServiceImpl implements FreeSwitchService {
             if (jobId == null || jobId.isBlank()) {
                 throw new BusinessException(ErrorCode.INTERNAL_ERROR, "FreeSWITCH originate returned empty job id");
             }
-            return jobId;
+            acceptedManagedCallIds.add(callId);
+            return callId;
         } catch (RuntimeException ex) {
             throw wrapAsBusinessException("Failed to originate call via FreeSWITCH", ex);
         }

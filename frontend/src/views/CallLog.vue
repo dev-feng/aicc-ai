@@ -1,15 +1,15 @@
 <template>
   <section class="page">
     <div class="hero">
-      <p class="eyebrow">Logs</p>
-      <h1>查询通话日志</h1>
-      <p>按号码和时间范围检索通话记录，展示呼叫方向、主被叫、起止时间和通话时长。</p>
+      <p class="eyebrow">Managed Logs</p>
+      <h1>受管通话日志</h1>
+      <p>这里只查询已经通过受管过滤的通话记录，便于区分业务通话和 FreeSWITCH 内部腿或扫描流量。</p>
     </div>
 
     <div class="panel">
       <div class="panel-inner">
-        <h2 class="panel-title">检索条件</h2>
-        <p class="panel-subtitle">查询后端 `/api/call/log`，空结果也会正常返回列表。</p>
+        <h2 class="panel-title">查询条件</h2>
+        <p class="panel-subtitle">请求后端 <code>/api/call/managed-log</code>，按号码和时间范围过滤。</p>
 
         <div class="filter-bar">
           <el-form label-position="top" :model="filters">
@@ -77,7 +77,7 @@
 <script setup>
 import { reactive, ref } from "vue";
 import { ElMessage } from "element-plus";
-import { queryCallLogs } from "../api/call.js";
+import { queryManagedLogs } from "../api/call.js";
 
 const filters = reactive({
   phone: "",
@@ -103,16 +103,16 @@ const hangupCauseMap = {
 
 async function searchLogs() {
   if (!filters.phone) {
-    ElMessage.warning("请先填写号码");
+    ElMessage.warning("请输入号码");
     return;
   }
 
   loading.value = true;
   try {
-    const result = await queryCallLogs(filters);
+    const result = await queryManagedLogs(filters);
     if (result.code === 200) {
       rows.value = result.data ?? [];
-      ElMessage.success(`查询完成，共 ${rows.value.length} 条记录`);
+      ElMessage.success(`查询完成，返回 ${rows.value.length} 条记录`);
       return;
     }
     ElMessage.error(result.msg || "查询失败");

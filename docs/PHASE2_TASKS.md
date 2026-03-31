@@ -19,13 +19,13 @@
 |------|------|------|------|------|
 | T11 | 坐席/分机基础数据模型 | 阶段一全部 | 1 session | ✅ 已完成 |
 | T12 | 坐席管理 API | T11 | 1 session | ✅ 已完成 |
-| T13 | 受管呼叫过滤与归属 | T11, 阶段一 T5/T6 | 1 session | ⬜ 待开始 |
-| T14 | 通话会话 Session 管理 | T13 | 1 session | ⬜ 待开始 |
-| T15 | ASR/TTS/LLM 抽象层 | T14 | 1 session | ⬜ 待开始 |
-| T16 | AI 通话流程骨架 | T15 | 1 session | ⬜ 待开始 |
-| T17 | 人机协同与转人工 | T12, T16 | 1 session | ⬜ 待开始 |
-| T18 | 第二阶段前端页面 | T12, T13, T17 | 1 session | ⬜ 待开始 |
-| T19 | 端到端联调与测试收口 | T11-T18 | 1 session | ⬜ 待开始 |
+| T13 | 受管呼叫过滤与归属 | T11, 阶段一 T5/T6 | 1 session | ✅ 已完成 |
+| T14 | 通话会话 Session 管理 | T13 | 1 session | ✅ 已完成 |
+| T15 | ASR/TTS/LLM 抽象层 | T14 | 1 session | ✅ 已完成 |
+| T16 | AI 通话流程骨架 | T15 | 1 session | ✅ 已完成 |
+| T17 | 人机协同与转人工 | T12, T16 | 1 session | ✅ 已完成 |
+| T18 | 第二阶段前端页面 | T12, T13, T17 | 1 session | ✅ 已完成 |
+| T19 | 端到端联调与测试收口 | T11-T18 | 1 session | ✅ 已完成 |
 
 ```
 依赖关系图：
@@ -447,23 +447,23 @@ backend/call-center/call-core/src/test/
 
 ### 验收清单
 
-- [ ] `mvn test` 全部通过
-- [ ] 第二阶段核心新增能力有覆盖率报告
-- [ ] 至少一条人机协同链路可验证
-- [ ] 前端可操作第二阶段新增功能
-- [ ] 文档回填完整
+- [x] `mvn test` 全部通过
+- [x] 第二阶段核心新增能力有覆盖率报告
+- [x] 至少一条人机协同链路可验证
+- [x] 前端可操作第二阶段新增功能
+- [x] 文档回填完整
 
 ### 执行记录
 
-- 执行时间：
-- 执行方式：
-- 完成情况：
-- 验证结果：
-- 降级说明：
-- 阻塞项：
-- 偏差记录：
-- 下一步建议：
-- 需回溯更新 Spec 的点：
+- 执行时间：2026-03-31
+- 执行方式：本地端到端联调收口；后端执行 `mvn test`，前端执行 `npm.cmd run build`，并核对 Phase 2 控制台与后端接口映射关系。
+- 完成情况：已完成。T11-T18 的后端能力、测试、前端入口和文档已统一收口，任务总览状态同步更新为完成。
+- 验证结果：`backend/call-center/call-core/target/site/jacoco/` 已生成覆盖率报告；本次 `mvn test` 共通过 57 个测试用例；`jacoco.csv` 汇总结果为 instruction 59.31%、branch 28.51%、line 82.99%、分析类数 49；`npm.cmd run build` 构建通过。可验证的人机协同链路为：“外呼控制台”调用 `/api/call/outbound` 获取 callId -> “坐席管理”创建坐席并绑定分机 -> “人工接管”调用 `/api/call/transfer` 触发转人工 -> “受管通话日志”调用 `/api/call/managed-log` 查询受管记录。
+- 降级说明：真实 FreeSWITCH / AI provider 仍以 mock/stub 与单测覆盖为主，本次收口未新增外部环境直连验证；该限制与第二阶段当前目标一致。
+- 阻塞项：无。
+- 偏差记录：前端生产构建仍存在 Vite 大于 500 kB 的 chunk warning，但不影响当前功能验收和联调闭环。
+- 下一步建议：若进入第三阶段，优先补真实 FreeSWITCH 链路联调、AI provider 切换验证，以及前端按路由拆包降低首屏产物体积。
+- 需回溯更新 Spec 的点：本次收口未发现新的接口边界或数据模型偏差，暂不需要额外回写 `SYSTEM_SPEC.md` 或 `PHASE2_GOALS.md`。
 > T13 更新（2026-03-24）：已完成。已新增 `ManagedCallFilterService` 过滤 `voicemail`、未绑定分机和明显异常号码；`FreeSwitchServiceImpl` 已在发布事件前执行受管呼叫判断，并记录过滤原因。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=FreeSwitchServiceImplTest,ManagedCallFilterServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`。
 
 > T14 更新（2026-03-24）：已完成。已新增内存级 `CallSession` / `CallSessionService`，并在 `CallEventListener` 中把 `CallCreatedEvent`、`CallEndedEvent` 同步写入 Session 状态流。当前支持按 `callId` 查询会话、列出活跃会话、更新会话状态，并覆盖“先创建后挂断”“只有挂断事件”两类场景。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=CallSessionServiceImplTest,CallEventListenerTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`、`mvn test`。
@@ -472,3 +472,4 @@ backend/call-center/call-core/src/test/
 
 > T16 更新（2026-03-24）：已完成。已新增 `AiCallFlowService` 与最小编排实现，当前支持 `processText(callId, transcript)` 这条 mock AI 对话链：先校验 Session，再把状态推进到 `thinking`，调用 `LlmService` 做意图判断；若命中人工意图则置为 `transfer_pending`，否则继续调用 `TtsService` 并把 Session 收口到 `completed`。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=AiCallFlowServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`、`mvn test`。
 > T17 更新：2026-03-24 已补充最小转人工路由能力，新增 `AgentRoutingService` / `AgentRoutingServiceImpl`，支持按指定坐席或默认可用坐席选择已绑定分机，并在路由成功时把 `CallSession` 状态推进到 `transferred`，无可用坐席时推进到 `transfer_failed`。`AiCallFlowServiceImpl` 的转人工分支已接入该路由能力，形成 “LLM 命中转人工 -> 坐席分机选择 -> Session 更新” 的最小闭环；同步新增 `TransferToAgentRequest`、`AgentRoutingServiceImplTest`，并更新 `AiCallFlowServiceImplTest`。验证通过：`mvn -pl :call-core -am compile`、`mvn -pl :call-core -am "-Dtest=AgentRoutingServiceImplTest,AiCallFlowServiceImplTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`、`mvn test`。
+> T18 更新：2026-03-30 已补充第二阶段前端控制台，新增“受管通话日志 / 坐席管理 / 人工接管”页面，并把原有外呼页整理为 Phase 2 可复用入口；前端已接入 `/api/call/managed-log`、`/api/call/transfer`、`/api/agent`、`/api/agent/{agentId}`、`/api/agent/bind-extension`、`/api/agent/unbind-extension`。后端同步补充 `TransferToAgentResponse`、`CallController` 的 `managed-log` 与 `transfer` 接口，以及 `CallControllerTest` 覆盖。验证通过：`mvn -pl :call-core -am "-Dtest=CallControllerTest" "-Dsurefire.failIfNoSpecifiedTests=false" test`、`npm.cmd run build`。当前前端生产构建可通过，但 Vite 产物存在大于 500 kB 的 chunk 警告，后续如需优化可再拆包。

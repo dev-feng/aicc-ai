@@ -77,9 +77,9 @@ public class CallLogServiceImpl implements CallLogService {
     }
 
     private CallRecord buildRecord(CallEndedEvent event, CallCreatedEvent createdEvent) {
-        String caller = firstNonBlank(event.caller(), createdEvent == null ? null : createdEvent.caller());
-        String callee = firstNonBlank(event.callee(), createdEvent == null ? null : createdEvent.callee());
         Integer callType = event.callType() != null ? event.callType() : createdEvent == null ? null : createdEvent.callType();
+        String caller = firstNonBlank(createdEvent == null ? null : createdEvent.caller(), event.caller());
+        String callee = firstNonBlank(createdEvent == null ? null : createdEvent.callee(), event.callee());
         LocalDateTime startTime = firstNonNull(event.startTime(), createdEvent == null ? null : createdEvent.createdAt(), event.endedAt());
         LocalDateTime ringingTime = firstNonNull(event.ringingTime(), startTime);
         LocalDateTime answerTime = event.answerTime();

@@ -30,6 +30,58 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class FreeSwitchServiceImplTest {
 
     @Test
+    void originate_returns_channel_uuid_instead_of_bgapi_job_id() {
+        RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
+        CapturingInboundClient inboundClient = new CapturingInboundClient();
+        FreeSwitchServiceImpl service = new FreeSwitchServiceImpl(
+                mockEnabledCoreProperties(),
+                validConfig(),
+                eventPublisher,
+                managedCallFilterService(true),
+                option -> inboundClient,
+                millis -> {
+                }
+        );
+
+        String callId = service.originate("1002", "1003");
+
+        assertThat(callId).isNotBlank();
+        assertThat(callId).isNotEqualTo("job-1");
+        assertThat(inboundClient.lastAsyncCommand).contains("origination_uuid=" + callId);
+        assertThat(inboundClient.lastAsyncCommand).contains("origination_caller_id_number=1002");
+    }
+
+    @Test
+    void handle_hangup_event_accepts_outbound_call_when_call_id_was_originated_by_system() {
+        RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
+        CapturingInboundClient inboundClient = new CapturingInboundClient();
+        FreeSwitchServiceImpl service = new FreeSwitchServiceImpl(
+                mockEnabledCoreProperties(),
+                validConfig(),
+                eventPublisher,
+                managedCallFilterService(false),
+                option -> inboundClient,
+                millis -> {
+                }
+        );
+
+        String callId = service.originate("1002", "1003");
+        Map<String, String> headers = inboundHeaders("CHANNEL_HANGUP_COMPLETE");
+        headers.put("Call-Direction", "outbound");
+        headers.put("Channel-Call-UUID", callId);
+        headers.put("Caller-Caller-ID-Number", "1003");
+        headers.put("Caller-Destination-Number", "1003");
+
+        service.handleInboundEvent(headers);
+
+        assertThat(eventPublisher.events).hasSize(1);
+        assertThat(eventPublisher.events.get(0)).isInstanceOf(CallEndedEvent.class);
+        CallEndedEvent endedEvent = (CallEndedEvent) eventPublisher.events.get(0);
+        assertThat(endedEvent.callId()).isEqualTo(callId);
+        assertThat(endedEvent.callType()).isEqualTo(2);
+    }
+
+    @Test
     void send_command_retries_until_connection_succeeds() {
         RecordingEventPublisher eventPublisher = new RecordingEventPublisher();
         AtomicInteger attempts = new AtomicInteger();
@@ -297,7 +349,7 @@ class FreeSwitchServiceImplTest {
         }
     }
 
-    private static final class FakeInboundClient implements InboundClient {
+    private static class FakeInboundClient implements InboundClient {
 
         private final boolean failOnStart;
 
@@ -404,6 +456,21 @@ class FreeSwitchServiceImplTest {
         @Override
         public InboundClient closeChannel(String s) {
             return this;
+        }
+    }
+
+    private static final class CapturingInboundClient extends FakeInboundClient {
+
+        private String lastAsyncCommand;
+
+        private CapturingInboundClient() {
+            super(false);
+        }
+
+        @Override
+        public String sendAsyncApiCommand(String s, String s1, String s2) {
+            this.lastAsyncCommand = s2;
+            return super.sendAsyncApiCommand(s, s1, s2);
         }
     }
 }
