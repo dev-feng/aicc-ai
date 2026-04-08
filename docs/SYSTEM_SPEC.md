@@ -419,6 +419,8 @@ CREATE TABLE IF NOT EXISTS `call_record` (
 | agent_info | 坐席信息、技能组、状态 | 第二期 |
 | ai_conversation | AI 对话轮次记录 | 第二期 |
 | call_recording | 录音元数据（路径、时长、格式） | 第三期 |
+| call_summary | 通话摘要结果（摘要正文、处理结果、标签） | 第三期 |
+| transfer_result | 转人工结果（目标坐席、状态、失败原因、兜底动作） | 第三期 |
 | quality_score | 质检评分记录 | 第四期 |
 | call_scenario | AI 场景/话术模板 | 第二期 |
 
@@ -437,6 +439,66 @@ CREATE TABLE IF NOT EXISTS `call_record` (
 | agent_name | VARCHAR(64) | 坐席姓名/显示名 |
 | status | VARCHAR(16) | `offline / idle / busy / pause` |
 | enabled | TINYINT | 是否启用 |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+第三阶段最小数据模型细化：
+
+#### call_recording
+
+用途：沉淀单通电话对应的录音元数据，优先满足“可追踪、可查询”，不要求在第三阶段完成完整媒体文件平台。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| call_id | VARCHAR(64) | 关联 `call_record.call_id`，建议唯一 |
+| recording_path | VARCHAR(255) | 录音文件路径 |
+| resource_id | VARCHAR(128) | 外部录音资源标识 |
+| format | VARCHAR(32) | 录音格式，如 `wav/mp3` |
+| duration_sec | INT | 时长（秒） |
+| status | VARCHAR(16) | `pending / success / failed / cancelled` |
+| source_type | VARCHAR(16) | `real / stub / mock` |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+#### call_summary
+
+用途：沉淀一次通话结束后的最小摘要结果，为后续前端展示、运营回查和 AI 降级说明提供稳定落点。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| call_id | VARCHAR(64) | 关联 `call_record.call_id`，建议唯一 |
+| summary_text | TEXT | 摘要正文 |
+| summary_status | VARCHAR(16) | `pending / success / failed / cancelled` |
+| result_code | VARCHAR(64) | 处理结果编码，如 `handled_by_ai` |
+| tags | VARCHAR(255) | 关键标签，允许逗号分隔 |
+| source_type | VARCHAR(16) | `real / stub / mock` |
+| create_time | DATETIME | 创建时间 |
+| update_time | DATETIME | 更新时间 |
+
+#### transfer_result
+
+用途：记录 AI 转人工过程的结果，支持多次尝试、失败原因追踪和兜底动作回放。
+
+建议字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键 |
+| call_id | VARCHAR(64) | 关联 `call_record.call_id` |
+| attempt_no | INT | 转接尝试次数，从 1 开始 |
+| target_agent_id | BIGINT | 目标坐席 ID |
+| target_extension_no | VARCHAR(32) | 目标分机号 |
+| transfer_status | VARCHAR(16) | `pending / success / failed / timeout / cancelled` |
+| failure_reason | VARCHAR(64) | 失败原因 |
+| fallback_action | VARCHAR(64) | 兜底动作 |
+| requested_at | DATETIME | 发起转接时间 |
+| completed_at | DATETIME | 转接完成时间 |
 | create_time | DATETIME | 创建时间 |
 | update_time | DATETIME | 更新时间 |
 

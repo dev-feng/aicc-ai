@@ -17,7 +17,7 @@
 
 | 编号 | 任务 | 依赖 | 预估 | 状态 |
 |------|------|------|------|------|
-| T20 | 第三阶段数据模型补齐（录音/摘要/转接结果） | 第二阶段全部 | 1 session | `TODO` |
+| T20 | 第三阶段数据模型补齐（录音/摘要/转接结果） | 第二阶段全部 | 1 session | `DONE` |
 | T21 | 真实 FreeSWITCH 联调收口 | T20 | 1-2 session | `TODO` |
 | T22 | AI provider 切换与真实能力验证 | T20 | 1 session | `TODO` |
 | T23 | 转人工接管流程增强 | T20, T21 | 1 session | `TODO` |
@@ -75,14 +75,15 @@ backend/call-center/call-core/
 ### 执行记录
 
 - 执行时间：
-- 执行方式：
-- 完成情况：
-- 验证结果：
+- 执行时间：2026-03-31
+- 执行方式：本地代码实现 + H2/SpringBootTest 验证
+- 完成情况：已新增 `schema_v3.sql`、`CallRecording` / `CallSummary` / `TransferResult` 实体与 Mapper，并补充最小持久化服务 `CallAssetService`
+- 验证结果：新增 `CallAssetMapperTest` 与 `CallAssetServiceImplTest`，覆盖录音元数据、摘要记录、转接结果的写入与查询/更新行为
 - 降级说明：
-- 阻塞项：
-- 偏差记录：
-- 下一步建议：
-- 需回溯更新 Spec 的点：
+- 阻塞项：无
+- 偏差记录：本任务仅补齐最小承载结构，未在 T20 内接入真实 FreeSWITCH 录音回调、摘要生成链路和转人工编排逻辑，这些由 T21/T23/T24 继续完成
+- 下一步建议：进入 T21 时直接以 `transfer_result` 和 `call_recording` 为落点接入真实事件回调；T24 复用 `call_summary` 闭环补齐摘要生成
+- 需回溯更新 Spec 的点：已同步补充 `SYSTEM_SPEC.md` 中 `call_summary` 与 `transfer_result` 的第三阶段数据模型定义
 
 ---
 ## T21: 真实 FreeSWITCH 联调收口
